@@ -799,6 +799,19 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 700; flex-shrink: 0;
   }
+  /* 🔍 الزيارات الاستكشافية + المشرفون المشاركون */
+  .explore-toggle { background:linear-gradient(90deg,rgba(201,168,92,.14),rgba(201,168,92,.04)); border:1px dashed rgba(201,168,92,.7); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13px; }
+  .co-sup-box { display:flex; flex-wrap:wrap; gap:6px; max-height:150px; overflow:auto; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--surface, #fff); }
+  .co-sup-box label { display:flex; align-items:center; gap:5px; padding:4px 10px; border:1px solid var(--border); border-radius:16px; font-size:12px; cursor:pointer; user-select:none; }
+  .co-sup-box label.on { background:rgba(45,90,74,.12); border-color:#2d5a4a; color:#2d5a4a; font-weight:700; }
+  .co-sup-box input { accent-color:#2d5a4a; cursor:pointer; }
+  .badge-explore { background:rgba(201,168,92,.2); color:#8b6f2f; border:1px solid rgba(201,168,92,.6); padding:2px 8px; border-radius:10px; font-size:10.5px; font-weight:700; white-space:nowrap; }
+  .badge-archived { background:rgba(113,128,150,.15); color:#4a5568; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+  /* 🔒 الحذف للأدمن فقط: إخفاء أزرار الحذف لباقي الأدوار */
+  body.nsq-no-delete [onclick*="delete" i],
+  body.nsq-no-delete [onclick*="confirmRemoveOrgMember"],
+  body.nsq-no-delete [onclick*="resetOrgStructure"] { display: none !important; }
+  .role-pending { background: rgba(237,137,54,0.25); color: #fbd38d; }
   .role-badge {
     display: inline-block; padding: 2px 8px; border-radius: 12px;
     font-size: 11px; font-weight: 600;
@@ -1979,13 +1992,8 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
           <label>كلمة المرور</label>
           <input type="password" id="reg-pass" placeholder="8 أحرف على الأقل" style="width:100%;">
         </div>
-        <div class="form-group" style="margin-bottom:20px;">
-          <label>الصلاحية</label>
-          <select id="reg-role">
-            <option value="admin">👑 مدير النظام — كامل الصلاحيات</option>
-            <option value="editor">✏️ محرر — إضافة وتعديل</option>
-            <option value="viewer">👁️ مشاهد — مشاهدة فقط</option>
-          </select>
+        <div style="background:var(--surface,#f7f2eb);border-radius:8px;padding:10px;font-size:12px;color:var(--text-mid);margin-bottom:14px;line-height:1.7;">
+          🔐 الحساب الجديد يكون <b>بانتظار التفعيل</b> حتى يحدد مدير الشركة صلاحيتك من صفحة "إدارة المستخدمين".
         </div>
         <div id="reg-admin-warn" style="background:var(--warning-bg);border-radius:8px;padding:10px;font-size:12px;color:var(--warning);margin-bottom:14px;display:none;">
           ⚠️ إنشاء مدير نظام أول — سيُمنح كامل الصلاحيات
@@ -2094,6 +2102,12 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
     </div>
     <div class="nav-item" id="nav-users" style="display:none;" onclick="showPage('users')">
       <span class="icon">🔐</span> إدارة المستخدمين
+    </div>
+    <div class="nav-item" id="nav-audit" style="display:none;" onclick="showPage('audit')">
+      <span class="icon">📜</span> تقارير التعديل والحذف
+    </div>
+    <div class="nav-item" id="nav-trash" style="display:none;" onclick="showPage('trash')">
+      <span class="icon">🗑️</span> سلة المحذوفات
     </div>
   </div>
   <div class="user-info">
@@ -2598,6 +2612,7 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
     <div class="topbar">
       <h2>🎯 إدارة المشاريع</h2>
       <div class="topbar-actions">
+        <button class="btn btn-outline btn-sm" id="pr-archive-completed-btn" style="display:none;" onclick="archiveCompletedProjects()" title="نقل كل المشاريع المكتملة والملغاة إلى الأرشيف">📦 أرشفة المكتملة</button>
         <button class="btn btn-primary" onclick="openProjectModal()">+ مشروع جديد</button>
       </div>
     </div>
@@ -2634,6 +2649,7 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
         <div class="tab" onclick="filterProjects('paused',this)">متوقفة</div>
         <div class="tab" onclick="filterProjects('completed',this)">مكتملة</div>
         <div class="tab" onclick="filterProjects('delayed',this)">متأخرة ⚠️</div>
+        <div class="tab" onclick="filterProjects('archived',this)">📦 الأرشيف <span id="pr-archive-count"></span></div>
       </div>
 
       <div class="projects-grid" id="projects-grid">
@@ -2825,6 +2841,7 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
               <div style="font-size:15px;font-weight:700;color:var(--warning);margin-bottom:8px;">👑 مدير الشركة</div>
               <div style="font-size:12px;color:var(--text-mid);line-height:1.7;">
                 ✅ صلاحية كاملة على كل شيء<br>
+                🔒 الوحيد المخوّل بالحذف واسترجاع المحذوفات<br>
                 ✅ التقارير المالية الاستراتيجية<br>
                 ✅ إدارة المستخدمين والأدوار<br>
                 ✅ يوافق على المشاريع الكبرى
@@ -2876,6 +2893,80 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
           <table>
             <thead><tr><th>الاسم</th><th>البريد الإلكتروني</th><th>الصلاحية</th><th>مرتبط بـ</th><th>تاريخ الإضافة</th><th>الإجراء</th></tr></thead>
             <tbody id="users-table"><tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">لا يوجد مستخدمون</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 📜 سجل التعديلات والحذف (للأدمن فقط) ═══ -->
+  <div id="page-audit" class="page">
+    <div class="topbar">
+      <h2>📜 تقارير التعديل والحذف</h2>
+      <div class="topbar-actions">
+        <button class="btn btn-outline btn-sm" onclick="exportAuditCSV()">📥 Excel</button>
+        <button class="btn btn-outline btn-sm" onclick="printAuditReport()">🖨️ طباعة التقرير</button>
+        <button class="btn btn-outline btn-sm" onclick="showPage('trash')">🗑️ سلة المحذوفات</button>
+        <button class="btn btn-outline btn-sm" onclick="renderAudit()">🔄 تحديث</button>
+      </div>
+    </div>
+    <div style="padding:28px;">
+      <div class="stats-grid" id="audit-stats" style="margin-bottom:16px;"></div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;">
+          <div class="form-group" style="margin:0;"><label>العملية</label>
+            <select id="au-action" onchange="renderAudit(true)">
+              <option value="">كل العمليات</option><option value="update">✏️ تعديل</option><option value="delete">🗑️ حذف</option>
+              <option value="create">➕ إضافة</option><option value="restore">♻️ استرجاع</option>
+            </select></div>
+          <div class="form-group" style="margin:0;"><label>القسم</label><select id="au-col" onchange="renderAudit(true)"><option value="">كل الأقسام</option></select></div>
+          <div class="form-group" style="margin:0;"><label>المستخدم</label><select id="au-user" onchange="renderAudit(true)"><option value="">كل المستخدمين</option></select></div>
+          <div class="form-group" style="margin:0;"><label>من تاريخ</label><input type="date" id="au-from" onchange="renderAudit(true)"></div>
+          <div class="form-group" style="margin:0;"><label>إلى تاريخ</label><input type="date" id="au-to" onchange="renderAudit(true)"></div>
+          <div class="form-group" style="margin:0;"><label>بحث</label><input type="search" id="au-q" placeholder="اسم السجل..." oninput="renderAudit(true)"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">سجل العمليات</span><span id="audit-count" style="font-size:12px;color:var(--text-muted);"></span></div>
+        <div class="card-body" style="padding:0;overflow-x:auto;">
+          <table>
+            <thead><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>القسم</th><th>السجل</th><th>الحقول المتغيرة</th><th>الإجراء</th></tr></thead>
+            <tbody id="audit-table"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">جاري التحميل...</td></tr></tbody>
+          </table>
+          <div id="audit-more" style="display:none;text-align:center;padding:14px;border-top:1px solid var(--border);">
+            <button class="btn btn-outline btn-sm" onclick="window._auditShowAll=true;renderAudit(true)">⬇️ عرض الكل</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 🗑️ سلة المحذوفات (للأدمن فقط) ═══ -->
+  <div id="page-trash" class="page">
+    <div class="topbar">
+      <h2>🗑️ سلة المحذوفات</h2>
+      <div class="topbar-actions">
+        <span style="font-size:12px;color:var(--text-muted);">كل سجل يُحذف تُحفظ نسخة منه هنا ويمكن استرجاعه</span>
+        <button class="btn btn-outline btn-sm" onclick="renderTrash()">🔄 تحديث</button>
+      </div>
+    </div>
+    <div style="padding:28px;">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin:0;min-width:200px;"><label>النوع</label>
+            <select id="trash-filter" onchange="renderTrash(true)"><option value="">كل الأنواع</option></select>
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:200px;"><label>بحث</label>
+            <input type="search" id="trash-search" placeholder="اسم / ملاحظة..." oninput="renderTrash(true)">
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">السجلات المحذوفة</span><span id="trash-count" style="font-size:12px;color:var(--text-muted);"></span></div>
+        <div class="card-body" style="padding:0;">
+          <table>
+            <thead><tr><th>النوع</th><th>السجل</th><th>تاريخ الحذف</th><th>حذفه</th><th>الإجراء</th></tr></thead>
+            <tbody id="trash-table"><tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">جاري التحميل...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -4109,16 +4200,29 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
       <button class="modal-close" onclick="closeModal('visit')">✕</button>
     </div>
     <div class="modal-body">
+      <div class="explore-toggle">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+          <input type="checkbox" id="v-exploratory" onchange="toggleExploratoryVisit('v')" style="width:18px;height:18px;accent-color:#c9a85c;cursor:pointer;">
+          🔍 زيارة استكشافية — براند غير مسجّل بعد في المنصة
+        </label>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">تُحتسب الزيارة لكل المشرفين المشاركين فيها، ويمكن لاحقاً تحويل البراند إلى براند مسجّل.</div>
+      </div>
       <div class="form-grid">
-        <div class="form-group"><label>البراند المزار</label><select id="v-client" onchange="filterPersonsByClient('v-client','v-person','v-show-all-info')"></select></div>
+        <div class="form-group" id="v-client-wrap"><label>البراند المزار</label><select id="v-client" onchange="filterPersonsByClient('v-client','v-person','v-show-all-info')"></select></div>
+        <div class="form-group" id="v-prospect-wrap" style="display:none;"><label>اسم البراند (غير المسجّل) *</label>
+          <input type="text" id="v-prospect-name" list="prospect-names-list" placeholder="مثال: مطعم الريف — فرع أبها">
+        </div>
+        <div class="form-group" id="v-prospect-extra" style="display:none;"><label>جهة التواصل / الموقع (اختياري)</label>
+          <input type="text" id="v-prospect-contact" placeholder="اسم المالك أو الجوال أو الحي">
+        </div>
         <div class="form-group"><label>المشروع (اختياري)</label><select id="v-project"><option value="">— بدون مشروع —</option></select></div>
         <div class="form-group"><label>تاريخ الزيارة</label><input type="date" id="v-date"></div>
         <div class="form-group">
           <label style="display:flex;justify-content:space-between;align-items:center;">
-            <span>الزائر</span>
+            <span>المشرف الرئيسي (الزائر)</span>
             <span id="v-show-all-info" style="font-size:11px;color:var(--text-muted);font-weight:400;"></span>
           </label>
-          <select id="v-person"></select>
+          <select id="v-person" onchange="renderCoSupervisorBox('v')"></select>
           <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text-mid);cursor:pointer;">
             <input type="checkbox" id="v-show-all" onchange="filterPersonsByClient('v-client','v-person','v-show-all-info')" style="cursor:pointer;accent-color:#2d5a4a;">
             عرض جميع المشرفين (تجاوز الفلترة)
@@ -4127,8 +4231,12 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
         <div class="form-group"><label>غرض الزيارة</label>
           <select id="v-purpose">
             <option>متابعة تشغيلية</option><option>تفتيش جودة</option><option>اجتماع</option>
-            <option>تدريب</option><option>حل مشكلة</option><option>أخرى</option>
+            <option>تدريب</option><option>حل مشكلة</option><option>زيارة استكشافية</option><option>أخرى</option>
           </select>
+        </div>
+        <div class="form-group full">
+          <label>👥 مشرفون مشاركون في نفس الزيارة <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(تُحتسب الزيارة لكل مشرف محدد)</span></label>
+          <div id="v-co-box" class="co-sup-box"></div>
         </div>
         <div class="form-group full"><label>ملاحظات الزيارة</label><textarea id="v-notes" placeholder="ما تم ملاحظته أو إنجازه خلال الزيارة..."></textarea></div>
         <div class="form-group full">
@@ -4401,6 +4509,16 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
   </div>
 </div>
 
+<datalist id="prospect-names-list"></datalist>
+<div class="modal-overlay" id="modal-audit-detail">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-header">
+      <span class="modal-title" id="audit-detail-title">تفاصيل العملية</span>
+      <button class="modal-close" onclick="closeModal('audit-detail')">✕</button>
+    </div>
+    <div class="modal-body" id="audit-detail-body"></div>
+  </div>
+</div>
 <!-- Edit Visit Modal -->
 <div class="modal-overlay" id="modal-edit-visit">
   <div class="modal" style="max-width:520px;">
@@ -4410,15 +4528,27 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
     </div>
     <div class="modal-body">
       <input type="hidden" id="ev-id">
+      <div class="explore-toggle">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+          <input type="checkbox" id="ev-exploratory" onchange="toggleExploratoryVisit('ev')" style="width:18px;height:18px;accent-color:#c9a85c;cursor:pointer;">
+          🔍 زيارة استكشافية — براند غير مسجّل
+        </label>
+      </div>
       <div class="form-grid">
-        <div class="form-group"><label>البراند المزار</label><select id="ev-client" onchange="filterPersonsByClient('ev-client','ev-person','ev-show-all-info',document.getElementById('ev-show-all').checked)"></select></div>
+        <div class="form-group" id="ev-client-wrap"><label>البراند المزار</label><select id="ev-client" onchange="filterPersonsByClient('ev-client','ev-person','ev-show-all-info',document.getElementById('ev-show-all').checked)"></select></div>
+        <div class="form-group" id="ev-prospect-wrap" style="display:none;"><label>اسم البراند (غير المسجّل) *</label>
+          <input type="text" id="ev-prospect-name" list="prospect-names-list" placeholder="اسم البراند">
+        </div>
+        <div class="form-group" id="ev-prospect-extra" style="display:none;"><label>جهة التواصل / الموقع</label>
+          <input type="text" id="ev-prospect-contact" placeholder="اختياري">
+        </div>
         <div class="form-group"><label>تاريخ الزيارة</label><input type="date" id="ev-date"></div>
         <div class="form-group">
           <label style="display:flex;justify-content:space-between;align-items:center;">
-            <span>الزائر</span>
+            <span>المشرف الرئيسي (الزائر)</span>
             <span id="ev-show-all-info" style="font-size:11px;color:var(--text-muted);font-weight:400;"></span>
           </label>
-          <select id="ev-person"></select>
+          <select id="ev-person" onchange="renderCoSupervisorBox('ev')"></select>
           <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text-mid);cursor:pointer;">
             <input type="checkbox" id="ev-show-all" onchange="filterPersonsByClient('ev-client','ev-person','ev-show-all-info',this.checked)" style="cursor:pointer;accent-color:#2d5a4a;">
             عرض جميع المشرفين (تجاوز الفلترة)
@@ -4427,8 +4557,12 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
         <div class="form-group"><label>غرض الزيارة</label>
           <select id="ev-purpose">
             <option>متابعة تشغيلية</option><option>تفتيش جودة</option><option>اجتماع</option>
-            <option>تدريب</option><option>حل مشكلة</option><option>أخرى</option>
+            <option>تدريب</option><option>حل مشكلة</option><option>زيارة استكشافية</option><option>أخرى</option>
           </select>
+        </div>
+        <div class="form-group full">
+          <label>👥 مشرفون مشاركون <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(تُحتسب الزيارة لكل مشرف محدد)</span></label>
+          <div id="ev-co-box" class="co-sup-box"></div>
         </div>
         <div class="form-group full"><label>ملاحظات الزيارة</label><textarea id="ev-notes" placeholder="ما تم ملاحظته أو إنجازه..."></textarea></div>
         <div class="form-group full">
@@ -4753,36 +4887,74 @@ function initFirebase() {
     try { storage_fb = firebase.storage(); } catch(e){ storage_fb = null; }
     showSyncStatus('connecting');
     showLoginScreen();
-    window._authListenerAttached = true;
-    auth_fb.onAuthStateChanged(async user => {
-      if(user) {
-        // جلب بيانات المستخدم مع retry
-        let userData = null;
-        for(let i=0; i<3; i++) {
-          try {
-            const doc = await db_firestore.collection('app_users').doc(user.uid).get();
-            if(doc.exists) { userData = { uid:user.uid, email:user.email, ...doc.data() }; break; }
-          } catch(e) { await new Promise(r=>setTimeout(r,1000)); }
-        }
-        currentUser = userData || { uid:user.uid, email:user.email, name:user.email, role:'admin' };
-        showApp();
-        loadAllFromFirebase();
-      } else {
-        // ── تم تسجيل الخروج: إيقاف المستمعين وتنظيف الحالة وإعادة عرض شاشة الدخول ──
-        detachFirestoreListeners();
-        hideWelcomeOverlay();
-        try { Object.keys(sessionStorage).filter(k => k.indexOf('nsq_welcomed_') === 0).forEach(k => sessionStorage.removeItem(k)); } catch(e) {}
-        currentUser = null;
-        window._perm = null;
-        DB = { clients:[], contracts:[], payments:[], tasks:[], visits:[], team:[], brands:[], projects:[], org_structure:[], brand_sales:[], brand_plans:[], visit_plans:[], app_users:[] };
-        showLoginScreen();
-      }
-    });
+    attachAuthListener();
   } catch(e) {
     console.error('Firebase init error:', e);
     showSyncStatus('error');
     showLoginScreen();
   }
+}
+
+// ── مستمع حالة الدخول (مصدر الحقيقة الوحيد للمستخدم الحالي وصلاحياته) ──
+// 🔐 أمان: الدور يُقرأ دائماً من app_users — لا يوجد أي دور افتراضي "admin".
+//    حساب بلا سجل صلاحيات أو بدور "pending" لا يدخل المنصة حتى يفعّله الأدمن.
+function attachAuthListener() {
+  if(window._authListenerAttached || !auth_fb) return;
+  window._authListenerAttached = true;
+  auth_fb.onAuthStateChanged(async user => {
+    if(window._registering) return;   // أثناء إنشاء حساب: doRegister يتولى المعالجة بعد كتابة سجل الصلاحيات
+    if(user) {
+      await handleAuthUser(user);
+    } else {
+      // ── تم تسجيل الخروج: إيقاف المستمعين وتنظيف الحالة وإعادة عرض شاشة الدخول ──
+      detachFirestoreListeners();
+      hideWelcomeOverlay();
+      try { Object.keys(sessionStorage).filter(k => k.indexOf('nsq_welcomed_') === 0).forEach(k => sessionStorage.removeItem(k)); } catch(e) {}
+      currentUser = null;
+      window._perm = null;
+      DB = { clients:[], contracts:[], payments:[], tasks:[], visits:[], team:[], brands:[], projects:[], org_structure:[], brand_sales:[], brand_plans:[], visit_plans:[], recipes:[], app_users:[] };
+      showLoginScreen();
+    }
+  });
+}
+
+// قراءة سجل الصلاحيات للمستخدم ثم فتح المنصة (أو شاشة الانتظار)
+async function handleAuthUser(user) {
+  let userData = null, fetched = false;
+  for(let i=0; i<3; i++) {
+    try {
+      const doc = await db_firestore.collection('app_users').doc(user.uid).get();
+      fetched = true;
+      if(doc.exists) userData = { uid:user.uid, email:user.email, ...doc.data() };
+      break;
+    } catch(e) { await new Promise(r=>setTimeout(r,1000)); }
+  }
+  if(!userData || !userData.role || userData.role === 'pending') {
+    currentUser = null;
+    window._perm = null;
+    showPendingScreen(user, fetched);
+    return;
+  }
+  currentUser = userData;
+  showApp();
+  loadAllFromFirebase();
+}
+
+// ── شاشة "الحساب بانتظار التفعيل" ──
+function showPendingScreen(user, fetched) {
+  showLoginScreen();
+  const err = document.getElementById('login-err');
+  if(err) {
+    err.style.display = 'block';
+    err.textContent = fetched
+      ? '⏳ حسابك (' + (user.email || '') + ') بانتظار التفعيل من مدير الشركة. تواصل معه لتحديد صلاحيتك.'
+      : '⚠️ تعذّر التحقق من صلاحيات حسابك — تحقق من الاتصال وأعد المحاولة.';
+  }
+  if(typeof switchToLogin === 'function') switchToLogin();
+  const btn = document.getElementById('login-btn');
+  if(btn) { btn.textContent = 'دخول'; btn.disabled = false; }
+  // إنهاء الجلسة حتى لا تبقى مفتوحة بدون صلاحيات
+  setTimeout(() => { try { auth_fb && auth_fb.signOut(); } catch(e) {} }, 50);
 }
 
 // ── إعداد Firestore: كاش محلي دائم (IndexedDB) + عمل بدون اتصال + مزامنة بين التبويبات ──
@@ -4908,14 +5080,89 @@ function loadAllFromFirebase() {
   }, 30000);
 }
 
+// 🔐 حماية من حقن الأكواد (XSS): أي نص يبدأ بوسم HTML (مثل <script أو <img) يُعطَّل قبل الحفظ
+//    باستبدال "<" بالحرف المشابه "‹" — لا يؤثر على النصوص العادية أو الصور (data:)
+function sanitizeText(v) {
+  if(typeof v !== 'string' || v.indexOf('<') === -1 || v.startsWith('data:')) return v;
+  return v.replace(/<(?=[a-zA-Z!\/?])/g, '‹');
+}
+function sanitizeRecord(obj, depth) {
+  depth = depth || 0;
+  if(depth > 8 || obj == null) return obj;
+  if(typeof obj === 'string') return sanitizeText(obj);
+  if(Array.isArray(obj)) { for(let i = 0; i < obj.length; i++) obj[i] = sanitizeRecord(obj[i], depth + 1); return obj; }
+  if(typeof obj === 'object') { Object.keys(obj).forEach(k => { obj[k] = sanitizeRecord(obj[k], depth + 1); }); }
+  return obj;
+}
+
+// ═══════════════════════════════════════════════
+// 📜 سجل النشاط (Audit Log): كل إضافة/تعديل/حذف/استرجاع مع المستخدم والوقت والحقول المتغيرة
+// • التعديل يحفظ النسخة السابقة → يمكن للأدمن التراجع عنه
+// • الحذف يحفظ نسخة كاملة في سلة المحذوفات → يمكن استرجاعه
+// ═══════════════════════════════════════════════
+const AUDIT_SKIP = ['visit_files', 'member_files', 'trash', 'audit_log', 'app_users'];
+const AUDIT_IGNORE_KEYS = ['updatedAt'];
+function auditLight(o) {
+  // إزالة الملفات الثقيلة (صور/PDF مضمّنة) من النسخة المحفوظة في السجل حتى لا تتجاوز حد Firestore
+  if(o == null) return o;
+  if(typeof o === 'string') return (o.startsWith('data:') && o.length > 1500) ? '[ملف]' : o;
+  if(Array.isArray(o)) return o.map(auditLight);
+  if(typeof o === 'object') { const r = {}; Object.keys(o).forEach(k => { r[k] = auditLight(o[k]); }); return r; }
+  return o;
+}
+function auditTitle(collection, d) {
+  d = d || {};
+  if(collection === 'visits') return (typeof visitBrandName === 'function' ? visitBrandName(d) : '') + (d.date ? ' — ' + d.date : '');
+  if(collection === 'payments') return (d.amount ? d.amount + ' ر.س' : 'دفعة') + ' — ' + (getClient(d.clientId).name || '');
+  if(collection === 'contracts') return (d.type || 'عقد') + ' — ' + (getClient(d.clientId).name || '');
+  if(collection === 'brand_plans') return 'خطة ' + (getClient(d.brandId).name || '') + ' ' + (d.month != null ? (d.month + 1) + '/' + d.year : '');
+  return String(d.name || d.title || d.text || d.email || d.id || '');
+}
+function logAudit(action, collection, docId, after, before, extra) {
+  if(!db_firestore || !currentUser) return;
+  try {
+    let changes = [];
+    if(action === 'update' && before && after) {
+      const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+      keys.forEach(k => { if(!AUDIT_IGNORE_KEYS.includes(k) && JSON.stringify(before[k]) !== JSON.stringify(after[k])) changes.push(k); });
+      if(!changes.length) return;   // حفظ بدون أي تغيير فعلي — لا داعي للتسجيل
+    }
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const entry = Object.assign({
+      id, action, collection, docId,
+      title: auditTitle(collection, after || before).slice(0, 200),
+      changes,
+      at: new Date().toISOString(),
+      by: currentUser.name || currentUser.email || '',
+      byUid: currentUser.uid || '',
+      byRole: currentUser.role || ''
+    }, extra || {});
+    if(action === 'update' && before) {
+      entry.before = auditLight(before);
+      const short = v => { const t = (typeof v === 'string') ? auditLight(v) : JSON.stringify(auditLight(v)); return t == null ? '' : String(t).slice(0, 300); };
+      entry.diff = {};
+      changes.forEach(k => { entry.diff[k] = { from: short(before[k]), to: short(after[k]) }; });
+    }
+    db_firestore.collection('audit_log').doc(id).set(entry).catch(e => console.warn('audit log:', e && e.code ? e.code : e));
+  } catch(e) { console.warn('audit log error', e); }
+}
+
 // ── حفظ سجل واحد ──
 async function saveDoc(collection, obj) {
+  if(!obj || !obj.id) { console.warn('saveDoc: missing id', collection); return; }
+  sanitizeRecord(obj);
   saveLocal();
   if (!db_firestore) return;
   try {
     showSyncStatus('saving');
+    // 📜 النسخة السابقة (للسجل وإمكانية التراجع عن التعديل)
+    let before = null;
+    if(!AUDIT_SKIP.includes(collection)) {
+      try { const snap = await db_firestore.collection(collection).doc(obj.id).get(); if(snap.exists) before = snap.data(); } catch(_) {}
+    }
     await db_firestore.collection(collection).doc(obj.id).set(obj);
     showSyncStatus('synced');
+    if(!AUDIT_SKIP.includes(collection)) logAudit(before ? 'update' : 'create', collection, obj.id, obj, before);
   } catch(e) {
     console.error('Save error:', e);
     showSyncStatus('error');
@@ -4924,16 +5171,36 @@ async function saveDoc(collection, obj) {
 }
 
 // ── حذف سجل ──
+// 🔒 الحذف للأدمن فقط + نسخة من السجل تُحفظ في "سلة المحذوفات" (trash) لإمكانية الاسترجاع
+const TRASH_SKIP = ['visit_files', 'member_files'];   // ملفات ثقيلة لا تُنسخ للسلة
 async function deleteDoc(collection, id) {
+  if(!canDo('delete')) { showToast('🔒 الحذف متاح لمدير الشركة فقط'); return; }
   saveLocal();
-  if (!db_firestore) return;
+  if (!db_firestore || !id) return;
   try {
     showSyncStatus('saving');
+    let deletedData = null;
+    if(!TRASH_SKIP.includes(collection)) {
+      try {
+        const snap = await db_firestore.collection(collection).doc(id).get();
+        if(snap.exists) {
+          deletedData = snap.data();
+          await db_firestore.collection('trash').doc(collection + '__' + id).set({
+            id: collection + '__' + id, collection, docId: id, data: snap.data(),
+            deletedAt: new Date().toISOString(),
+            deletedBy: currentUser ? (currentUser.name || currentUser.email || '') : '',
+            deletedByUid: currentUser ? (currentUser.uid || '') : ''
+          });
+        }
+      } catch(e) { console.warn('Trash copy failed [' + collection + ']:', e && e.code ? e.code : e); }
+    }
     await db_firestore.collection(collection).doc(id).delete();
     showSyncStatus('synced');
+    if(!AUDIT_SKIP.includes(collection)) logAudit('delete', collection, id, null, deletedData, { trashId: collection + '__' + id });
   } catch(e) {
     console.error('Delete error:', e);
     showSyncStatus('error');
+    showToast('⚠️ تعذّر الحذف من السحابة: ' + (e && e.code ? e.code : 'خطأ'));
   }
 }
 
@@ -5029,8 +5296,15 @@ async function testFirebaseConnection() {
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  event.currentTarget && event.currentTarget.classList.add('active');
+  const pg = document.getElementById('page-' + name);
+  if(!pg) return;
+  pg.classList.add('active');
+  // تمييز عنصر القائمة (يعمل أيضاً عند الاستدعاء البرمجي بدون حدث نقر)
+  const ev = window.event;
+  const navEl = (ev && ev.currentTarget && ev.currentTarget.classList && ev.currentTarget.classList.contains('nav-item'))
+    ? ev.currentTarget
+    : document.querySelector(`.nav-item[onclick="showPage('${name}')"]`);
+  if(navEl) navEl.classList.add('active');
   renderPage(name);
 }
 
@@ -5048,6 +5322,8 @@ function renderPage(name) {
   if(name === 'visits') renderVisits();
   if(name === 'team') renderTeam();
   if(name === 'users') { if(canDo('manage_users')) renderUsers(); }
+  if(name === 'trash') { if(canDo('delete')) renderTrash(); }
+  if(name === 'audit') { if(canDo('delete')) renderAudit(); }
   if(name === 'visit-billing') initVisitBilling();
   if(name === 'visit-report') initVisitReport();
   if(name === 'visit-plans') initVisitPlans();
@@ -5126,7 +5402,20 @@ function openModal(type) {
   if(type === 'visit') {
     const vShowAll = document.getElementById('v-show-all');
     if(vShowAll) vShowAll.checked = false;
+    const vEx = document.getElementById('v-exploratory');
+    if(vEx) vEx.checked = false;
+    const vPur = document.getElementById('v-purpose');
+    if(vPur) vPur.value = 'متابعة تشغيلية';
     filterPersonsByClient('v-client','v-person','v-show-all-info', false);
+    // المشرف المرتبط بحساب المستخدم الحالي يُختار تلقائياً كمشرف رئيسي
+    const me = (currentUser && currentUser.teamMemberId) ? currentUser.teamMemberId : '';
+    const vp = document.getElementById('v-person');
+    if(me && vp && !vp.value) {
+      if(!Array.from(vp.options).some(o => o.value === me)) filterPersonsByClient('v-client','v-person','v-show-all-info', true);
+      vp.value = me;
+    }
+    toggleExploratoryVisit('v');
+    renderCoSupervisorBox('v', []);
   }
   // عند فتح modal إضافة مستخدم: تعبئة قائمة الفريق للربط
   if(type === 'add-user') {
@@ -5580,7 +5869,7 @@ async function markPaymentCollected(id) {
 
 // حذف دفعة
 async function deletePayment(id) {
-  if(!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   const p = DB.payments.find(x => x.id === id);
   if(!p) return;
   
@@ -5660,13 +5949,16 @@ function openEditTask(id) {
 }
 
 function saveVisit() {
-  const clientId = document.getElementById('v-client').value;
-  const personId = document.getElementById('v-person').value;
-  if(!clientId || !personId) { alert('يرجى اختيار البراند والزائر'); return; }
+  if(!canDo('add')) { showToast('🚫 ليس لديك صلاحية الإضافة'); return; }
+  const core = readVisitFormCore('v');
+  if(!core) return;
+  if(!document.getElementById('v-date').value) { alert('يرجى تحديد تاريخ الزيارة'); return; }
   const projectId = document.getElementById('v-project') ? document.getElementById('v-project').value : '';
   const visitId = genId();
   const obj = {
-    id: visitId, clientId, projectId, personId,
+    id: visitId, clientId: core.clientId, projectId, personId: core.personId, personIds: core.personIds,
+    exploratory: core.exploratory, prospectName: core.prospectName, prospectContact: core.prospectContact,
+    createdBy: currentUser ? (currentUser.uid || '') : '',
     date: document.getElementById('v-date').value,
     purpose: document.getElementById('v-purpose').value,
     notes: document.getElementById('v-notes').value,
@@ -5676,6 +5968,8 @@ function saveVisit() {
   DB.visits.push(obj);
   closeModal('visit'); renderVisits();
   document.getElementById('v-notes').value='';
+  ['v-prospect-name','v-prospect-contact'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  if(core.personIds.length > 1) showToast(`✅ تم تسجيل الزيارة واحتسابها لـ ${core.personIds.length} مشرفين`);
   document.getElementById('v-pdf-label').textContent='اضغط لرفع ملف PDF أو اسحبه هنا';
   document.getElementById('v-pdf-preview').style.display='none';
   // ارفع PDF في الخلفية إذا تم اختياره
@@ -6275,11 +6569,13 @@ function sendVisitViaWhatsApp(visitId) {
   const member = ensureMemberPhone(visit.personId);
   if(!member) return;
   
-  const client = visit.clientId ? getClient(visit.clientId) : null;
+  const others = visitPersonIds(visit).filter(id => id !== visit.personId).map(id => getMember(id).name);
   
   let msg = `السلام عليكم أ. ${member.name} 👋\n\n`;
-  msg += `🚶 *تنبيه زيارة:*\n\n`;
-  if(client) msg += `🏷️ البراند: ${client.name}\n`;
+  msg += `🚶 *تنبيه زيارة${visit.exploratory ? ' استكشافية' : ''}:*\n\n`;
+  msg += `🏷️ البراند: ${visitBrandName(visit)}${visit.exploratory ? ' (غير مسجّل — زيارة استكشافية)' : ''}\n`;
+  if(visit.exploratory && visit.prospectContact) msg += `📞 التواصل/الموقع: ${visit.prospectContact}\n`;
+  if(others.length) msg += `👥 المشرفون المشاركون: ${others.join('، ')}\n`;
   if(visit.date) msg += `📅 التاريخ: ${formatDate(visit.date)}\n`;
   if(visit.purpose) msg += `🎯 الغرض: ${visit.purpose}\n`;
   if(visit.notes) msg += `\n📝 ملاحظات: ${visit.notes}\n`;
@@ -6747,7 +7043,7 @@ function renderDashboard() {
   document.getElementById('db-expiring').textContent = expiring;
 
   // 🎯 إحصاءات المشاريع
-  const visibleProjects = filterByRole([...DB.projects], 'clientId');
+  const visibleProjects = filterByRole([...DB.projects], 'clientId').filter(p => !p.archived);
   const activeProjectsCount = visibleProjects.filter(p => p.status === 'active').length;
   const delayedProjectsCount = visibleProjects.filter(p => projectDelayDays(p) > 0).length;
   const activeProjectsEl = document.getElementById('db-active-projects');
@@ -6798,8 +7094,10 @@ function renderDashboard() {
   // Visits by person chart
   const personVisits = {};
   DB.visits.forEach(v => {
-    const m = getMember(v.personId);
-    personVisits[m.name] = (personVisits[m.name]||0) + 1;
+    visitPersonIds(v).forEach(pid => {
+      const m = getMember(pid);
+      personVisits[m.name] = (personVisits[m.name]||0) + 1;
+    });
   });
   const maxV = Math.max(...Object.values(personVisits), 1);
   const vc = document.getElementById('db-visits-chart');
@@ -7124,6 +7422,7 @@ function togglePhaseInModal(idx) {
 }
 
 async function saveProject() {
+  if(!canDo('manage_projects')) { showToast('⛔ لا تملك صلاحية إدارة المشاريع'); return; }
   const name = document.getElementById('pm-name').value.trim();
   const supervisorId = document.getElementById('pm-supervisor').value;
   if(!name) { showToast('⚠️ اكتب اسم المشروع'); return; }
@@ -7150,10 +7449,18 @@ async function saveProject() {
     updatedAt: new Date().toISOString(),
     createdBy: existing ? existing.createdBy : (currentUser ? currentUser.uid : null)
   };
+  // الحفاظ على حالة الأرشفة وتاريخ الإكمال عند التعديل
+  if(existing) {
+    ['archived','archivedAt','archivedBy','completedAt'].forEach(k => { if(existing[k] !== undefined) obj[k] = existing[k]; });
+  }
   
   // إذا اكتمل المشروع، اضبط تاريخ الإكمال
   if(obj.status === 'completed' && !existing?.completedAt) {
     obj.completedAt = new Date().toISOString();
+  }
+  // إعادة فتح مشروع مؤرشف (تغيير حالته لنشط/تخطيط) تُخرجه من الأرشيف تلقائياً
+  if(obj.archived && !['completed','cancelled'].includes(obj.status)) {
+    obj.archived = false; obj.archivedAt = null; obj.archivedBy = null;
   }
   
   const idx = DB.projects.findIndex(p => p.id === id);
@@ -7194,7 +7501,18 @@ function filterProjects(f, el) {
 }
 
 function renderProjects() {
-  let projects = filterByRole([...DB.projects], 'clientId');
+  const allVisible = filterByRole([...DB.projects], 'clientId');
+  const archivedList = allVisible.filter(p => p.archived);
+  // 📦 المشاريع المؤرشفة لا تظهر إلا في تبويب "الأرشيف" ولا تدخل في المؤشرات
+  let projects = allVisible.filter(p => !p.archived);
+  const archTab = document.getElementById('pr-archive-count');
+  if(archTab) archTab.textContent = archivedList.length ? '(' + archivedList.length + ')' : '';
+  const archAllBtn = document.getElementById('pr-archive-completed-btn');
+  if(archAllBtn) {
+    const n = projects.filter(p => p.status === 'completed' || p.status === 'cancelled').length;
+    archAllBtn.style.display = (canDo('manage_projects') && n > 0) ? '' : 'none';
+    archAllBtn.textContent = '📦 أرشفة المكتملة (' + n + ')';
+  }
   
   // المؤشرات السريعة
   document.getElementById('pr-total').textContent = projects.length;
@@ -7204,7 +7522,9 @@ function renderProjects() {
   document.getElementById('pr-avg-progress').textContent = avg + '%';
   
   // فلترة حسب التبويب
-  if(_currentProjectFilter === 'delayed') {
+  if(_currentProjectFilter === 'archived') {
+    projects = archivedList.sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''));
+  } else if(_currentProjectFilter === 'delayed') {
     projects = projects.filter(p => projectDelayDays(p) > 0);
   } else if(_currentProjectFilter !== 'all') {
     projects = projects.filter(p => p.status === _currentProjectFilter);
@@ -7212,7 +7532,9 @@ function renderProjects() {
   
   const grid = document.getElementById('projects-grid');
   if(projects.length === 0) {
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><div class="e-icon">🎯</div><p>لا توجد مشاريع في هذا التصنيف</p></div>';
+    grid.innerHTML = _currentProjectFilter === 'archived'
+      ? '<div class="empty" style="grid-column:1/-1;"><div class="e-icon">📦</div><p>الأرشيف فارغ — المشاريع المكتملة يمكن أرشفتها من بطاقتها بزر 📦</p></div>'
+      : '<div class="empty" style="grid-column:1/-1;"><div class="e-icon">🎯</div><p>لا توجد مشاريع في هذا التصنيف</p></div>';
     return;
   }
   
@@ -7238,10 +7560,13 @@ function renderProjects() {
       <div class="project-card" onclick="openProjectDetail('${p.id}')">
         <div class="project-card-header">
           <div>
-            <div class="project-name">${priorityIcons[p.priority]||'🟡'} ${p.name}</div>
-            ${client ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">🏢 ${client.brandName||client.name}</div>` : ''}
+            <div class="project-name">${priorityIcons[p.priority]||'🟡'} ${esc(p.name)}</div>
+            ${client ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">🏢 ${esc(client.brandName||client.name)}</div>` : ''}
           </div>
-          <span class="project-status-badge ${st.cls}">${st.txt}</span>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+            <span class="project-status-badge ${st.cls}">${st.txt}</span>
+            ${p.archived ? `<span class="badge-archived" title="أُرشف ${p.archivedAt ? formatDate(p.archivedAt) : ''}">📦 مؤرشف</span>` : ''}
+          </div>
         </div>
         
         <div class="project-meta">
@@ -7262,8 +7587,10 @@ function renderProjects() {
         </div>
         
         <div class="project-footer">
-          ${supervisor ? `<div class="project-supervisor-pill">👔 ${supervisor.name}</div>` : '<span style="color:var(--text-muted);">بدون مشرف</span>'}
+          ${supervisor ? `<div class="project-supervisor-pill">👔 ${esc(supervisor.name)}</div>` : '<span style="color:var(--text-muted);">بدون مشرف</span>'}
           <div class="project-actions" onclick="event.stopPropagation();">
+            ${canDo('manage_projects') && !p.archived && (p.status === 'completed' || p.status === 'cancelled') ? `<button onclick="archiveProject('${p.id}', true)" title="نقل إلى الأرشيف">📦</button>` : ''}
+            ${canDo('manage_projects') && p.archived ? `<button onclick="archiveProject('${p.id}', false)" title="إلغاء الأرشفة">♻️</button>` : ''}
             ${p.supervisorId ? `<button class="btn-whatsapp-icon" onclick="sendProjectViaWhatsApp('${p.id}')" title="إرسال للمشرف عبر واتساب">📱</button>` : ''}
             ${canDo('manage_projects') ? `<button onclick="openProjectModal('${p.id}')" title="تعديل">✏️</button>` : ''}
             ${canDo('delete') ? `<button onclick="deleteProject('${p.id}')" title="حذف">🗑️</button>` : ''}
@@ -7354,8 +7681,11 @@ function openProjectDetail(projectId) {
     
     ${p.notes ? `<div style="background:var(--warning-bg,#fff8e7);padding:12px;border-radius:8px;margin-top:14px;font-size:13px;"><strong>📝 ملاحظات:</strong> ${p.notes}</div>` : ''}
     
+    ${p.archived ? `<div style="background:rgba(113,128,150,.1);padding:10px 12px;border-radius:8px;margin-top:14px;font-size:12.5px;">📦 هذا المشروع مؤرشف منذ ${formatDate(p.archivedAt)}${p.archivedBy ? ' — بواسطة ' + esc(p.archivedBy) : ''}</div>` : ''}
     <div class="form-actions" style="margin-top:18px;">
       <button class="btn btn-outline" onclick="closeModal('project-detail')">إغلاق</button>
+      ${canDo('manage_projects') && !p.archived && (p.status === 'completed' || p.status === 'cancelled') ? `<button class="btn btn-outline" onclick="archiveProject('${p.id}', true); closeModal('project-detail');">📦 أرشفة المشروع</button>` : ''}
+      ${canDo('manage_projects') && p.archived ? `<button class="btn btn-outline" onclick="archiveProject('${p.id}', false); closeModal('project-detail');">♻️ إلغاء الأرشفة</button>` : ''}
       ${canDo('manage_projects') ? `<button class="btn btn-primary" onclick="closeModal('project-detail'); openProjectModal('${p.id}')">✏️ تعديل</button>` : ''}
     </div>
   `;
@@ -7364,6 +7694,7 @@ function openProjectDetail(projectId) {
 }
 
 async function togglePhaseInDetail(projectId, phaseId) {
+  if(!canDo('edit')) { showToast('🚫 ليس لديك صلاحية التعديل'); return; }
   const p = DB.projects.find(x => x.id === projectId);
   if(!p) return;
   const ph = (p.phases||[]).find(x => x.id === phaseId);
@@ -7386,8 +7717,40 @@ async function togglePhaseInDetail(projectId, phaseId) {
   renderProjects();
 }
 
+// ═══ 📦 أرشفة المشاريع المنتهية ═══
+async function archiveProject(id, archive) {
+  if(!canDo('manage_projects')) { showToast('⛔ لا تملك صلاحية إدارة المشاريع'); return; }
+  const p = DB.projects.find(x => x.id === id);
+  if(!p) return;
+  if(archive && !['completed','cancelled'].includes(p.status)) {
+    if(!confirm('هذا المشروع غير مكتمل. تحديده كمكتمل وأرشفته؟')) return;
+    p.status = 'completed';
+    if(!p.completedAt) p.completedAt = new Date().toISOString();
+  }
+  p.archived = !!archive;
+  p.archivedAt = archive ? new Date().toISOString() : null;
+  p.archivedBy = archive ? (currentUser ? (currentUser.name || currentUser.email || '') : '') : null;
+  p.updatedAt = new Date().toISOString();
+  await saveDoc('projects', p);
+  renderProjects();
+  renderDashboard();
+  showToast(archive ? '📦 تم نقل المشروع إلى الأرشيف' : '♻️ تمت إعادة المشروع من الأرشيف');
+}
+async function archiveCompletedProjects() {
+  if(!canDo('manage_projects')) { showToast('⛔ لا تملك صلاحية إدارة المشاريع'); return; }
+  const list = filterByRole([...DB.projects], 'clientId').filter(p => !p.archived && (p.status === 'completed' || p.status === 'cancelled'));
+  if(!list.length) { showToast('لا توجد مشاريع مكتملة لأرشفتها'); return; }
+  if(!confirm(`أرشفة ${list.length} مشروع مكتمل/ملغي؟ ستبقى محفوظة في تبويب "الأرشيف" ويمكن إعادتها في أي وقت.`)) return;
+  const now = new Date().toISOString();
+  const by = currentUser ? (currentUser.name || currentUser.email || '') : '';
+  for(const p of list) { p.archived = true; p.archivedAt = now; p.archivedBy = by; p.updatedAt = now; await saveDoc('projects', p); }
+  renderProjects();
+  renderDashboard();
+  showToast(`📦 تمت أرشفة ${list.length} مشروع`);
+}
+
 async function deleteProject(id) {
-  if(!canDo('delete')) { showToast('⛔ لا تملك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if(!confirm('⚠️ هل أنت متأكد من حذف هذا المشروع؟ سيتم فصل المهام والزيارات المرتبطة منه (لن تُحذف).')) return;
   
   // فك الربط من المهام والزيارات
@@ -7691,7 +8054,7 @@ async function renderOrgChart() {
         <div class="org-node-actions">
           <button class="org-node-action-btn" onclick="event.stopPropagation();openOrgEditMember('${nodeId}','${role}')" title="تعديل">✏️</button>
           <button class="org-node-action-btn danger" onclick="event.stopPropagation();hideOrgMember('${nodeId}')" title="إخفاء من الشكل">👁️</button>
-          <button class="org-node-action-btn danger" onclick="event.stopPropagation();confirmRemoveOrgMember('${nodeId}','${(user.name||user.email||'').replace(/'/g,'')}')" title="حذف نهائي">🗑️</button>
+          <button class="org-node-action-btn danger" onclick="event.stopPropagation();confirmRemoveOrgMember('${nodeId}','${esc((user.name||user.email||'').replace(/['\\]/g,''))}')" title="حذف نهائي">🗑️</button>
         </div>
         <div class="org-avatar">${initials(user.name||user.email||'?')}</div>
         <div class="org-name">${user.name || user.email || '—'}</div>
@@ -8109,7 +8472,7 @@ async function saveBrandSale() {
 }
 
 async function deleteBrandSale(id) {
-  if(!canDo('delete')) { showToast('🚫 لا تملك صلاحية'); return; }
+  if(!requireDelete()) return;
   if(!confirm('⚠️ حذف هذا السجل؟')) return;
   DB.brand_sales = (DB.brand_sales||[]).filter(s => s.id !== id);
   await deleteDoc('brand_sales', id);
@@ -8324,6 +8687,7 @@ async function showOrgMember(memberId) {
 // حذف نهائي من الهيكل
 // ═══════════════════════════════
 async function confirmRemoveOrgMember(memberId, memberName) {
+  if(!requireDelete()) return;
   // التحقق إذا كان عضو يدوي (manualMember) أم من النظام
   const cfg = window._orgConfig || {};
   const isManual = (cfg.manualMembers || []).some(m => m.id === memberId);
@@ -8539,6 +8903,7 @@ async function saveOrgEditMember() {
 // استعادة الإعدادات الافتراضية
 // ═══════════════════════════════
 async function resetOrgStructure() {
+  if(!requireDelete()) return;
   if(!confirm('⚠️ استعادة الإعدادات الافتراضية؟\nسيُحذف: الإخفاء، الترتيب المخصص، الأعضاء اليدويون، تعديلات الأدوار.\nهذا الإجراء لا يمكن التراجع عنه.')) return;
   
   const cfg = {
@@ -8766,7 +9131,7 @@ function buildVisitsReport(f) {
   let visits = [...DB.visits];
   if(f.from || f.to) visits = visits.filter(v => inDateRange(v.date, f.from, f.to));
   if(f.clientId) visits = visits.filter(v => v.clientId === f.clientId);
-  if(f.supervisorId) visits = visits.filter(v => v.personId === f.supervisorId);
+  if(f.supervisorId) visits = visits.filter(v => visitHasPerson(v, f.supervisorId));
   
   const dateRange = `<p>📅 الفترة: من ${formatDate(f.from)} إلى ${formatDate(f.to)}</p>`;
   
@@ -8777,22 +9142,27 @@ function buildVisitsReport(f) {
   // تجميع حسب المشرف
   const bySupervisor = {};
   visits.forEach(v => {
-    const sup = DB.team.find(m => m.id === v.personId);
-    const key = sup ? sup.name : 'غير محدد';
-    if(!bySupervisor[key]) bySupervisor[key] = [];
-    bySupervisor[key].push(v);
+    // الزيارة المشتركة تُحتسب لكل مشرف مشارك
+    const pids = visitPersonIds(v);
+    (pids.length ? pids : ['']).forEach(pid => {
+      if(f.supervisorId && pid !== f.supervisorId) return;
+      const sup = DB.team.find(m => m.id === pid);
+      const key = sup ? sup.name : 'غير محدد';
+      if(!bySupervisor[key]) bySupervisor[key] = [];
+      bySupervisor[key].push(v);
+    });
   });
   
   let html = `<h1>🚶 تقرير زيارات المشرفين</h1>${dateRange}
-    <p style="color:#666;">إجمالي الزيارات: <strong>${visits.length}</strong> | عدد المشرفين: <strong>${Object.keys(bySupervisor).length}</strong></p>
+    <p style="color:#666;">إجمالي الزيارات: <strong>${visits.length}</strong> | عدد المشرفين: <strong>${Object.keys(bySupervisor).length}</strong>${visits.filter(v => v.exploratory).length ? ` | زيارات استكشافية: <strong>${visits.filter(v => v.exploratory).length}</strong>` : ''}</p>
     
     <h2>📊 ملخص حسب المشرف</h2>
     <table>
       <thead><tr><th>المشرف</th><th>عدد الزيارات</th><th>البراندات المزارة</th></tr></thead>
       <tbody>
         ${Object.entries(bySupervisor).map(([name, vs]) => {
-          const brands = [...new Set(vs.map(v => { const c = getClient(v.clientId); return c ? (c.brandName||c.name) : '—'; }))];
-          return `<tr><td><strong>${name}</strong></td><td>${vs.length}</td><td>${brands.join('، ')}</td></tr>`;
+          const brands = [...new Set(vs.map(v => visitBrandName(v)))];
+          return `<tr><td><strong>${esc(name)}</strong></td><td>${vs.length}</td><td>${esc(brands.join('، '))}</td></tr>`;
         }).join('')}
       </tbody>
     </table>
@@ -8800,17 +9170,17 @@ function buildVisitsReport(f) {
   
   Object.entries(bySupervisor).forEach(([name, vs]) => {
     html += `
-      <h2>👔 ${name} (${vs.length} زيارة)</h2>
+      <h2>👔 ${esc(name)} (${vs.length} زيارة)</h2>
       <table>
         <thead><tr><th>التاريخ</th><th>البراند</th><th>الغرض</th><th>الملاحظات</th></tr></thead>
         <tbody>
           ${vs.sort((a,b) => new Date(b.date) - new Date(a.date)).map(v => {
-            const c = getClient(v.clientId);
+            const pids = visitPersonIds(v);
             return `<tr>
               <td>${formatDate(v.date)}</td>
-              <td>${c ? (c.brandName||c.name) : '—'}</td>
-              <td>${v.purpose||'—'}</td>
-              <td style="font-size:12px;">${(v.notes||'—').substring(0,150)}${(v.notes||'').length>150?'...':''}</td>
+              <td>${esc(visitBrandName(v))}${v.exploratory ? ' 🔍' : ''}${pids.length > 1 ? `<div style="font-size:10px;color:#666;">👥 مع: ${esc(pids.filter(x => getMember(x).name !== name).map(x => getMember(x).name).join('، '))}</div>` : ''}</td>
+              <td>${esc(v.purpose||'—')}</td>
+              <td style="font-size:12px;">${esc((v.notes||'—').substring(0,150))}${(v.notes||'').length>150?'...':''}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -9366,7 +9736,7 @@ function showContractDetail(id) {
 }
 
 function deleteContract(id) {
-  if(!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if(!confirm('هل أنت متأكد من حذف هذا العقد؟')) return;
   DB.contracts = DB.contracts.filter(c => c.id !== id);
   deleteDoc('contracts',id); closeModal('contract-detail'); renderContracts('all');
@@ -9412,7 +9782,7 @@ function renderClients() {
 }
 
 function deleteClient(id) {
-  if(!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if(!confirm('حذف العميل وجميع بياناته؟')) return;
   const contracts = DB.contracts.filter(c=>c.clientId===id);
   const payments = DB.payments.filter(p=>p.clientId===id);
@@ -9675,7 +10045,7 @@ function toggleTask(id) {
 }
 
 function deleteTask(id) {
-  if(!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   DB.tasks = DB.tasks.filter(t=>t.id!==id);
   deleteDoc('tasks',id); renderTasks('all');
 }
@@ -9683,7 +10053,111 @@ function deleteTask(id) {
 // ═══════════════════════════════
 // RENDER: VISITS — بحث وفلترة وتقارير الزيارات
 // ═══════════════════════════════
-const VISIT_PURPOSES = ['متابعة تشغيلية','تفتيش جودة','اجتماع','تدريب','حل مشكلة','أخرى'];
+const VISIT_PURPOSES = ['متابعة تشغيلية','تفتيش جودة','اجتماع','تدريب','حل مشكلة','زيارة استكشافية','أخرى'];
+const EXPLORE_FILTER = '__explore__';   // قيمة خاصة في فلتر البراند = الزيارات الاستكشافية فقط
+
+// ═══════════════════════════════════════════════
+// 👥 الزيارة متعددة المشرفين + 🔍 الزيارة الاستكشافية
+// • personId = المشرف الرئيسي (للتوافق مع السجلات القديمة)
+// • personIds = كل المشرفين المشاركين (بما فيهم الرئيسي) — الزيارة تُحتسب لكل واحد منهم
+// • exploratory + prospectName = زيارة لبراند غير مسجّل بعد
+// ═══════════════════════════════════════════════
+function visitPersonIds(v) {
+  if(!v) return [];
+  const ids = Array.isArray(v.personIds) ? v.personIds.filter(Boolean) : [];
+  if(v.personId && !ids.includes(v.personId)) ids.unshift(v.personId);
+  return [...new Set(ids)];
+}
+function visitHasPerson(v, memberId) { return !!memberId && visitPersonIds(v).includes(memberId); }
+function visitPersonsNames(v) { return visitPersonIds(v).map(id => getMember(id).name).join('، ') || '—'; }
+function visitIsRegistered(v) { return !!(v && v.clientId && (DB.clients.some(c => c.id === v.clientId) || DB.brands.some(b => b.id === v.clientId))); }
+function visitBrandName(v) {
+  if(!v) return '—';
+  if(visitIsRegistered(v)) return getClient(v.clientId).name || '—';
+  if(v.exploratory || v.prospectName) return v.prospectName || 'براند غير مسجّل';
+  return getClient(v.clientId).name || '—';
+}
+function visitBrandLabelHTML(v) {
+  return esc(visitBrandName(v)) + (v && v.exploratory ? ' <span class="badge-explore" title="زيارة استكشافية لبراند غير مسجّل">🔍 استكشافية</span>' : '');
+}
+
+// إظهار/إخفاء حقول الزيارة الاستكشافية (prefix = 'v' للإضافة أو 'ev' للتعديل)
+function toggleExploratoryVisit(prefix) {
+  const on = !!(document.getElementById(prefix + '-exploratory') || {}).checked;
+  const show = (id, vis) => { const el = document.getElementById(id); if(el) el.style.display = vis ? '' : 'none'; };
+  show(prefix + '-client-wrap', !on);
+  show(prefix + '-prospect-wrap', on);
+  show(prefix + '-prospect-extra', on);
+  const purpose = document.getElementById(prefix + '-purpose');
+  if(on && purpose) purpose.value = 'زيارة استكشافية';
+  if(on) {
+    const cl = document.getElementById(prefix + '-client');
+    if(cl) cl.value = '';
+    filterPersonsByClient(prefix + '-client', prefix + '-person', prefix + '-show-all-info', true);
+  }
+  // قائمة أسماء البراندات الاستكشافية السابقة (لتوحيد كتابة الاسم)
+  const dl = document.getElementById('prospect-names-list');
+  if(dl) {
+    const names = [...new Set((DB.visits || []).filter(v => v.exploratory && v.prospectName && !visitIsRegistered(v)).map(v => v.prospectName.trim()))];
+    dl.innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
+  }
+  renderCoSupervisorBox(prefix);
+}
+
+// مربع المشرفين المشاركين (كل أعضاء الفريق ما عدا المشرف الرئيسي)
+function renderCoSupervisorBox(prefix, selectedIds) {
+  const box = document.getElementById(prefix + '-co-box');
+  if(!box) return;
+  const primary = (document.getElementById(prefix + '-person') || {}).value || '';
+  const keep = selectedIds || [...box.querySelectorAll('input:checked')].map(i => i.value);
+  const team = [...(DB.team || [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+  const list = team.filter(m => m.id !== primary);
+  if(!list.length) { box.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">لا يوجد أعضاء آخرون في الفريق</span>'; return; }
+  box.innerHTML = list.map(m => {
+    const on = keep.includes(m.id);
+    return `<label class="${on ? 'on' : ''}"><input type="checkbox" value="${esc(m.id)}" ${on ? 'checked' : ''} onchange="this.parentElement.classList.toggle('on', this.checked)">${esc(m.name)}</label>`;
+  }).join('');
+}
+function getCoSupervisorIds(prefix) {
+  const box = document.getElementById(prefix + '-co-box');
+  return box ? [...box.querySelectorAll('input:checked')].map(i => i.value) : [];
+}
+
+// قراءة بيانات البراند/المشرفين من نموذج الزيارة (إضافة أو تعديل) — ترجع null مع رسالة عند الخطأ
+function readVisitFormCore(prefix) {
+  const exploratory = !!(document.getElementById(prefix + '-exploratory') || {}).checked;
+  const clientId = exploratory ? '' : document.getElementById(prefix + '-client').value;
+  const prospectName = exploratory ? ((document.getElementById(prefix + '-prospect-name') || {}).value || '').trim() : '';
+  const prospectContact = exploratory ? ((document.getElementById(prefix + '-prospect-contact') || {}).value || '').trim() : '';
+  const personId = document.getElementById(prefix + '-person').value;
+  if(exploratory && !prospectName) { alert('يرجى كتابة اسم البراند غير المسجّل'); return null; }
+  if(!exploratory && !clientId) { alert('يرجى اختيار البراند المزار (أو فعّل "زيارة استكشافية" لبراند غير مسجّل)'); return null; }
+  if(!personId) { alert('يرجى اختيار المشرف الرئيسي للزيارة'); return null; }
+  const personIds = [personId, ...getCoSupervisorIds(prefix).filter(id => id !== personId)];
+  return { exploratory, clientId, prospectName, prospectContact, personId, personIds };
+}
+
+// ✅ تحويل براند الزيارة الاستكشافية إلى براند مسجّل وربط كل زياراته السابقة به
+async function convertProspectToBrand(visitId) {
+  if(!canDo('add')) { showToast('🚫 ليس لديك صلاحية'); return; }
+  const v = DB.visits.find(x => x.id === visitId);
+  if(!v || !v.prospectName) return;
+  const name = v.prospectName.trim();
+  const norm = s => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  let brand = [...DB.clients, ...DB.brands].find(b => norm(b.name) === norm(name));
+  if(!confirm(brand
+      ? `البراند "${name}" موجود مسبقاً. ربط كل الزيارات الاستكشافية بهذا الاسم به؟`
+      : `تسجيل "${name}" كبراند جديد في المنصة وربط كل زياراته الاستكشافية به؟`)) return;
+  if(!brand) {
+    brand = { id: genId(), name, type: '', city: '', branches: 1, owner: v.prospectContact || '', phone: '', desc: 'سُجّل من زيارة استكشافية', startDate: '', status: 'pending', createdAt: new Date().toISOString() };
+    DB.brands.push(brand);
+    await saveDoc('brands', brand);
+  }
+  const linked = DB.visits.filter(x => x.exploratory && !visitIsRegistered(x) && norm(x.prospectName) === norm(name));
+  for(const x of linked) { x.clientId = brand.id; x.convertedAt = new Date().toISOString(); await saveDoc('visits', x); }
+  showToast(`✅ تم تسجيل البراند وربط ${linked.length} زيارة استكشافية به`);
+  renderVisits();
+}
 const VF_ROW_LIMIT = 60;
 window._vfShowAll = false;
 window._vfLastFiltered = [];
@@ -9722,15 +10196,16 @@ function getVisitFilters() {
 
 // هل تطابق الزيارة الفلاتر؟ (البراند بمطابقة ذكية تعالج تكرار clients/brands)
 function visitMatchesFilters(v, f) {
-  if(f.brandId && !matchesEntity(v.clientId, f.brandId)) return false;
-  if(f.personId && v.personId !== f.personId) return false;
+  if(f.brandId === EXPLORE_FILTER) { if(!v.exploratory) return false; }
+  else if(f.brandId && !matchesEntity(v.clientId, f.brandId)) return false;
+  if(f.personId && !visitHasPerson(v, f.personId)) return false;
   if(f.purpose && (v.purpose || 'أخرى') !== f.purpose) return false;
   if(f.from || f.to) {
     if(!v.date) return false;
     if(!inDateRange(v.date, f.from, f.to)) return false;
   }
   if(f.text) {
-    const hay = [v.notes, v.purpose, getClient(v.clientId).name, getMember(v.personId).name].join(' ').toLowerCase();
+    const hay = [v.notes, v.purpose, visitBrandName(v), v.prospectName, v.prospectContact, visitPersonsNames(v)].join(' ').toLowerCase();
     if(!hay.includes(f.text)) return false;
   }
   return true;
@@ -9740,7 +10215,7 @@ function sortVisits(list, sort) {
   const t = d => d ? (new Date(d).getTime() || 0) : 0;
   const cmpName = (a, b) => a.localeCompare(b, 'ar');
   if(sort === 'date_asc') return list.sort((a, b) => t(a.date) - t(b.date));
-  if(sort === 'brand')    return list.sort((a, b) => cmpName(getClient(a.clientId).name || '', getClient(b.clientId).name || '') || (t(b.date) - t(a.date)));
+  if(sort === 'brand')    return list.sort((a, b) => cmpName(visitBrandName(a), visitBrandName(b)) || (t(b.date) - t(a.date)));
   if(sort === 'person')   return list.sort((a, b) => cmpName(getMember(a.personId).name || '', getMember(b.personId).name || '') || (t(b.date) - t(a.date)));
   return list.sort((a, b) => t(b.date) - t(a.date));
 }
@@ -9754,13 +10229,23 @@ function getFilteredVisits(f) {
 function aggregateVisits(list) {
   const byBrand = {}, byPerson = {}, byPurpose = {};
   let withPdf = 0, minD = null, maxD = null, lastVisit = null;
+  let exploratory = 0, multi = 0, personCredits = 0;
   list.forEach(v => {
-    const bn = getClient(v.clientId).name || '—';
-    const pn = getMember(v.personId).name || '—';
-    if(!byBrand[bn]) byBrand[bn] = { name: bn, id: v.clientId, count: 0, persons: new Set() };
-    byBrand[bn].count++; byBrand[bn].persons.add(pn);
-    if(!byPerson[pn]) byPerson[pn] = { name: pn, id: v.personId, count: 0, brands: new Set() };
-    byPerson[pn].count++; byPerson[pn].brands.add(bn);
+    const bn = visitBrandName(v);
+    const pids = visitPersonIds(v);
+    if(v.exploratory) exploratory++;
+    if(pids.length > 1) multi++;
+    if(!byBrand[bn]) byBrand[bn] = { name: bn, id: v.clientId, count: 0, persons: new Set(), exploratory: !!v.exploratory && !visitIsRegistered(v) };
+    byBrand[bn].count++;
+    // كل مشرف مشارك تُحتسب له الزيارة
+    (pids.length ? pids : ['']).forEach(pid => {
+      const pn = pid ? (getMember(pid).name || '—') : '—';
+      byBrand[bn].persons.add(pn);
+      const key = pid || '—';
+      if(!byPerson[key]) byPerson[key] = { name: pn, id: pid, count: 0, brands: new Set() };
+      byPerson[key].count++; byPerson[key].brands.add(bn);
+      personCredits++;
+    });
     const pu = v.purpose || 'أخرى';
     byPurpose[pu] = (byPurpose[pu] || 0) + 1;
     if(visitHasPDF(v)) withPdf++;
@@ -9778,7 +10263,7 @@ function aggregateVisits(list) {
     brands: desc(byBrand),
     persons: desc(byPerson),
     purposes: Object.entries(byPurpose).sort((a, b) => b[1] - a[1]),
-    withPdf, minD, maxD, lastVisit
+    withPdf, minD, maxD, lastVisit, exploratory, multi, personCredits
   };
 }
 
@@ -9792,9 +10277,11 @@ function refreshVisitFilterOptions() {
   // البراندات / الفروع
   const fNoBrand = Object.assign({}, f, { brandId: '' });
   const brandCounts = {};
-  visits.forEach(v => { if(visitMatchesFilters(v, fNoBrand)) { const n = getClient(v.clientId).name || '—'; brandCounts[n] = (brandCounts[n] || 0) + 1; } });
+  let exploreCount = 0;
+  visits.forEach(v => { if(visitMatchesFilters(v, fNoBrand)) { const n = visitBrandName(v); brandCounts[n] = (brandCounts[n] || 0) + 1; if(v.exploratory) exploreCount++; } });
   const brands = mergedBrandsList(false).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   brandSel.innerHTML = '<option value="">جميع البراندات</option>' +
+    `<option value="${EXPLORE_FILTER}">🔍 الزيارات الاستكشافية (براندات غير مسجّلة)${exploreCount ? ' (' + exploreCount + ')' : ''}</option>` +
     brands.map(b => `<option value="${b.id}">${esc(b.name)}${brandCounts[b.name] ? ' (' + brandCounts[b.name] + ')' : ''}</option>`).join('');
   brandSel.value = f.brandId;
   if(brandSel.value !== f.brandId) brandSel.value = '';
@@ -9802,7 +10289,7 @@ function refreshVisitFilterOptions() {
   // المشرفون / الزوار — الأكثر زيارات أولاً
   const fNoPerson = Object.assign({}, f, { personId: '' });
   const personCounts = {};
-  visits.forEach(v => { if(visitMatchesFilters(v, fNoPerson)) personCounts[v.personId] = (personCounts[v.personId] || 0) + 1; });
+  visits.forEach(v => { if(visitMatchesFilters(v, fNoPerson)) visitPersonIds(v).forEach(pid => { personCounts[pid] = (personCounts[pid] || 0) + 1; }); });
   const team = [...(DB.team || [])].sort((a, b) => (personCounts[b.id] || 0) - (personCounts[a.id] || 0) || (a.name || '').localeCompare(b.name || '', 'ar'));
   personSel.innerHTML = '<option value="">جميع المشرفين</option>' +
     team.map(m => `<option value="${m.id}">${esc(m.name)}${personCounts[m.id] ? ' (' + personCounts[m.id] + ')' : ''}</option>`).join('');
@@ -9854,8 +10341,17 @@ function clearVisitFilters() {
 // النقر على براند/مشرف في الرسوم = تطبيق الفلتر (والنقر مرة أخرى = إلغاؤه)
 function vfSelectBrandByName(name) {
   const sel = _vfEl('vf-brand'); if(!sel) return;
-  const opt = Array.from(sel.options).find(o => o.value && o.textContent.replace(/\s*\(\d+\)\s*$/, '') === name);
-  if(!opt) { showToast('ℹ️ هذا البراند غير موجود في قائمة البراندات الحالية'); return; }
+  const opt = Array.from(sel.options).find(o => o.value && o.value !== EXPLORE_FILTER && o.textContent.replace(/\s*\(\d+\)\s*$/, '') === name);
+  if(!opt) {
+    // براند استكشافي غير مسجّل: فلترة الاستكشافية + البحث بالاسم
+    if((DB.visits || []).some(v => v.exploratory && (v.prospectName || '') === name)) {
+      sel.value = EXPLORE_FILTER;
+      const tx = _vfEl('vf-text'); if(tx) tx.value = name;
+      onVisitFilterChange();
+      return;
+    }
+    showToast('ℹ️ هذا البراند غير موجود في قائمة البراندات الحالية'); return;
+  }
   sel.value = (sel.value === opt.value) ? '' : opt.value;
   onVisitFilterChange();
 }
@@ -9884,7 +10380,8 @@ function renderVisits() {
 
 function describeVisitFilters(f) {
   const parts = [];
-  if(f.brandId) parts.push({ k: 'البراند', v: getClient(f.brandId).name || '—' });
+  if(f.brandId === EXPLORE_FILTER) parts.push({ k: 'النوع', v: 'زيارات استكشافية' });
+  else if(f.brandId) parts.push({ k: 'البراند', v: getClient(f.brandId).name || '—' });
   if(f.personId) parts.push({ k: 'المشرف', v: getMember(f.personId).name || '—' });
   if(f.purpose) parts.push({ k: 'الغرض', v: f.purpose });
   if(f.from && f.to && f.from === f.to) parts.push({ k: 'التاريخ', v: weekdayAr(f.from) + ' ' + formatDate(f.from) });
@@ -9910,20 +10407,20 @@ function renderVisitStats(ag, total) {
   const ds = last ? daysSince(last.date) : null;
   const since = ds === null ? '' : (ds === 0 ? 'اليوم' : ds === 1 ? 'أمس' : ds < 0 ? 'مجدولة' : `منذ ${ds} يوم`);
   box.innerHTML = `
-    <div class="stat-card"><div class="stat-label">الزيارات المطابقة</div><div class="stat-value">${ag.total}</div><div class="stat-sub">من إجمالي ${total} زيارة مسجّلة</div></div>
+    <div class="stat-card"><div class="stat-label">الزيارات المطابقة</div><div class="stat-value">${ag.total}</div><div class="stat-sub">من إجمالي ${total} زيارة مسجّلة${ag.exploratory ? ' · 🔍 ' + ag.exploratory + ' استكشافية' : ''}</div></div>
     <div class="stat-card"><div class="stat-label">البراندات / الفروع المزارة</div><div class="stat-value">${ag.brands.length}</div><div class="stat-sub">${topBrand ? 'الأكثر: ' + esc(topBrand.name) + ' (' + topBrand.count + ')' : '—'}</div></div>
-    <div class="stat-card"><div class="stat-label">المشرفون</div><div class="stat-value">${ag.persons.length}</div><div class="stat-sub">${topPerson ? 'الأنشط: ' + esc(topPerson.name) + ' (' + topPerson.count + ')' : '—'}</div></div>
-    <div class="stat-card"><div class="stat-label">آخر زيارة</div><div class="stat-value" style="font-size:20px;">${last ? formatDate(last.date) : '—'}</div><div class="stat-sub">${last ? since + ' · ' + esc(getMember(last.personId).name || '') : 'لا توجد زيارات'}</div></div>`;
+    <div class="stat-card"><div class="stat-label">المشرفون</div><div class="stat-value">${ag.persons.length}</div><div class="stat-sub">${topPerson ? 'الأنشط: ' + esc(topPerson.name) + ' (' + topPerson.count + ')' : '—'}${ag.multi ? ' · 👥 ' + ag.multi + ' زيارة مشتركة' : ''}</div></div>
+    <div class="stat-card"><div class="stat-label">آخر زيارة</div><div class="stat-value" style="font-size:20px;">${last ? formatDate(last.date) : '—'}</div><div class="stat-sub">${last ? since + ' · ' + esc(visitPersonsNames(last)) : 'لا توجد زيارات'}</div></div>`;
 }
 
 function renderVisitsByBrand(ag, f) {
   const bv = _vfEl('visits-by-brand-list'); if(!bv) return;
   if(!ag.brands.length) { bv.innerHTML = '<div class="empty"><div class="e-icon">🏢</div><p>لا توجد زيارات مطابقة</p></div>'; return; }
   const max = ag.brands[0].count || 1;
-  const selName = f.brandId ? (getClient(f.brandId).name || '') : '';
+  const selName = (f.brandId && f.brandId !== EXPLORE_FILTER) ? (getClient(f.brandId).name || '') : '';
   bv.innerHTML = ag.brands.map(b => `
     <div class="vf-bar-row ${selName && selName === b.name ? 'selected' : ''}" data-name="${esc(b.name)}" onclick="vfSelectBrandByName(this.dataset.name)" title="اضغط لفلترة الزيارات على هذا البراند">
-      <div style="width:110px;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.name)}</div>
+      <div style="width:110px;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(b.name)}">${b.exploratory ? '🔍 ' : ''}${esc(b.name)}</div>
       <div style="flex:1;"><div class="progress-bar"><div class="progress-fill progress-red" style="width:${(b.count / max) * 100}%"></div></div></div>
       <span style="font-size:13px;font-weight:700;color:var(--dark-green);min-width:32px;">${b.count}</span>
       <span style="font-size:11px;color:var(--text-muted);min-width:36px;">${Math.round(b.count / ag.total * 100)}%</span>
@@ -9967,26 +10464,31 @@ function renderVisitsTable(list, f) {
   if(sub) sub.textContent = shown.length < list.length ? `عرض ${shown.length} من ${list.length} زيارة` : `${list.length} زيارة`;
   if(more) more.style.display = shown.length < list.length ? 'block' : 'none';
   tbody.innerHTML = shown.map((v, i) => {
-    const cl = getClient(v.clientId);
-    const m = getMember(v.personId);
-    const member = (DB.team || []).find(x => x.id === v.personId);
+    const pids = visitPersonIds(v);
     const notes = v.notes || '';
     const short = notes.length > 120 ? notes.slice(0, 120) + '…' : notes;
+    const personsHTML = (pids.length ? pids : ['']).map((pid, idx) => {
+      const m = getMember(pid);
+      const member = (DB.team || []).find(x => x.id === pid);
+      return `<div style="display:flex;align-items:center;gap:6px;${idx ? 'margin-top:4px;opacity:.9;' : ''}">
+        ${member ? memberAvatarHTML(member, idx ? 22 : 26, 10) : '<div class="avatar" style="width:26px;height:26px;font-size:10px;">' + esc(initials(m.name)) + '</div>'}
+        <span${idx ? ' style="font-size:12px;"' : ''}>${esc(m.name)}</span>${idx === 0 && pids.length > 1 ? ' <span style="font-size:10px;color:var(--text-muted);">(رئيسي)</span>' : ''}
+      </div>`;
+    }).join('');
+    const canConvert = v.exploratory && !visitIsRegistered(v) && canDo('add');
     return `<tr>
       <td style="color:var(--text-muted);font-size:12px;">${i + 1}</td>
-      <td><span style="font-weight:600;">${esc(cl.name)}</span></td>
+      <td><span style="font-weight:600;">${visitBrandLabelHTML(v)}</span>${v.exploratory && v.prospectContact ? `<div style="font-size:11px;color:var(--text-muted);">📞 ${esc(v.prospectContact)}</div>` : ''}</td>
       <td><div style="font-weight:600;white-space:nowrap;">${formatDate(v.date)}</div><div style="font-size:11px;color:var(--text-muted);">${weekdayAr(v.date)}</div></td>
-      <td><div style="display:flex;align-items:center;gap:6px;">
-        ${member ? memberAvatarHTML(member, 26, 10) : '<div class="avatar" style="width:26px;height:26px;font-size:10px;">' + initials(m.name) + '</div>'}
-        ${esc(m.name)}
-      </div></td>
+      <td>${personsHTML}${pids.length > 1 ? `<div style="font-size:10.5px;color:#2d5a4a;font-weight:700;margin-top:3px;">👥 تُحتسب لـ ${pids.length} مشرفين</div>` : ''}</td>
       <td><span class="badge badge-pending">${esc(v.purpose || 'أخرى')}</span></td>
       <td style="font-size:13px;color:var(--text-muted);max-width:280px;" title="${esc(notes)}">${esc(short) || '—'}</td>
       <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
         ${visitHasPDF(v) ? `<button class="btn btn-success btn-sm" onclick="openPDF('${v.id}')">📄 PDF</button>` : ''}
         ${v.personId ? `<button class="btn-whatsapp btn-whatsapp-sm" onclick="sendVisitViaWhatsApp('${v.id}')" title="إرسال للزائر عبر واتساب">📱</button>` : ''}
-        <button class="btn btn-outline btn-sm" onclick="openEditVisit('${v.id}')">✏️ تعديل</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteVisit('${v.id}')">حذف</button>
+        ${canConvert ? `<button class="btn btn-success btn-sm" onclick="convertProspectToBrand('${v.id}')" title="تسجيل هذا البراند في المنصة وربط زياراته الاستكشافية به">🏷️ تسجيل البراند</button>` : ''}
+        ${canDo('edit') ? `<button class="btn btn-outline btn-sm" onclick="openEditVisit('${v.id}')">✏️ تعديل</button>` : ''}
+        ${canDo('delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteVisit('${v.id}')">حذف</button>` : ''}
       </div></td>
     </tr>`;
   }).join('');
@@ -9996,7 +10498,7 @@ function renderVisitsTable(list, f) {
 // تقرير الزيارات: عنوان/فترة/مُعِدّ
 // ═══════════════════════════════
 function visitsReportTitle(f) {
-  const b = f.brandId ? (getClient(f.brandId).name || '') : '';
+  const b = f.brandId === EXPLORE_FILTER ? 'الزيارات الاستكشافية' : (f.brandId ? (getClient(f.brandId).name || '') : '');
   const p = f.personId ? (getMember(f.personId).name || '') : '';
   if(b && p) return `تقرير زيارات المشرف ${p} — ${b}`;
   if(b) return `تقرير زيارات ${b}`;
@@ -10054,6 +10556,8 @@ function buildVisitsReportHTML(f, list) {
   if(!f.personId && topP) summary += ` المشرف الأنشط: <b>${esc(topP.name)}</b> (${topP.count} زيارة).`;
   if(topU) summary += ` الغرض الغالب: <b>${esc(topU[0])}</b> (${topU[1]}).`;
   if(ag.withPdf) summary += ` وتم إرفاق تقرير PDF في <b>${ag.withPdf}</b> زيارة.`;
+  if(ag.exploratory) summary += ` منها <b>${ag.exploratory}</b> زيارة استكشافية لبراندات غير مسجّلة.`;
+  if(ag.multi) summary += ` و<b>${ag.multi}</b> زيارة شارك فيها أكثر من مشرف (تُحتسب لكل مشرف).`;
 
   const brandTable = !f.brandId ? `
     <div>
@@ -10084,12 +10588,11 @@ function buildVisitsReportHTML(f, list) {
   const purposeChips = ag.purposes.map(([p, c]) => `<span class="rep-chip">${esc(p)} <b>${c}</b></span>`).join('');
 
   const detailRows = list.map((v, i) => {
-    const cl = getClient(v.clientId), m = getMember(v.personId);
     return `<tr>
       <td class="num">${i + 1}</td>
       <td style="white-space:nowrap;"><b>${formatDate(v.date)}</b><div style="font-size:10px;color:#718096;">${weekdayAr(v.date)}</div></td>
-      <td><b>${esc(cl.name)}</b></td>
-      <td>${esc(m.name)}</td>
+      <td><b>${esc(visitBrandName(v))}</b>${v.exploratory ? '<div style="font-size:10px;color:#8b6f2f;">🔍 استكشافية</div>' : ''}</td>
+      <td>${esc(visitPersonsNames(v))}</td>
       <td>${esc(v.purpose || 'أخرى')}</td>
       <td class="notes">${esc(v.notes || '') || '—'}</td>
       <td class="num">${visitHasPDF(v) ? '✔' : '—'}</td>
@@ -10217,12 +10720,14 @@ function exportVisitsCSV() {
   const f = getVisitFilters();
   const list = getFilteredVisits(f);
   if(!list.length) { showToast('⚠️ لا توجد زيارات مطابقة للتصدير'); return; }
-  const rows = [['#', 'التاريخ', 'اليوم', 'البراند / الفرع', 'المشرف', 'الغرض', 'الملاحظات', 'مرفق PDF']];
+  const rows = [['#', 'التاريخ', 'اليوم', 'البراند / الفرع', 'نوع الزيارة', 'المشرفون', 'عدد المشرفين', 'الغرض', 'الملاحظات', 'مرفق PDF']];
   list.forEach((v, i) => rows.push([
-    i + 1, v.date || '', weekdayAr(v.date), getClient(v.clientId).name || '', getMember(v.personId).name || '',
+    i + 1, v.date || '', weekdayAr(v.date), visitBrandName(v), v.exploratory ? 'استكشافية' : 'براند مسجّل', visitPersonsNames(v), visitPersonIds(v).length,
     v.purpose || '', (v.notes || '').replace(/\r?\n/g, ' '), visitHasPDF(v) ? 'نعم' : 'لا'
   ]));
-  const csv = '\uFEFF' + rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+  // 🔐 منع حقن الصيغ في Excel (CSV injection): الخلايا التي تبدأ بـ = + - @ تُسبق بعلامة '
+  const cell = c => { let t = String(c); if(/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
+  const csv = '\uFEFF' + rows.map(r => r.map(cell).join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -10255,7 +10760,8 @@ function shareVisitsSummaryWhatsApp() {
     if(ag.persons.length > 10) msg += `… و${ag.persons.length - 10} مشرف آخر\n`;
   }
   if(ag.purposes.length) msg += `\n🎯 الأغراض: ${ag.purposes.map(([p, c]) => p + ' (' + c + ')').join('، ')}\n`;
-  if(ag.lastVisit) msg += `\n🕒 آخر زيارة: ${formatDate(ag.lastVisit.date)} — ${getMember(ag.lastVisit.personId).name}\n`;
+  if(ag.exploratory) msg += `🔍 زيارات استكشافية: ${ag.exploratory}\n`;
+  if(ag.lastVisit) msg += `\n🕒 آخر زيارة: ${formatDate(ag.lastVisit.date)} — ${visitPersonsNames(ag.lastVisit)}\n`;
   msg += nassaqSignature();
   const member = f.personId ? (DB.team || []).find(m => m.id === f.personId) : null;
   if(member && member.phone && normalizePhone(member.phone)) { openWhatsApp(member.phone, msg); return; }
@@ -10263,7 +10769,7 @@ function shareVisitsSummaryWhatsApp() {
 }
 
 function deleteVisit(id) {
-  if(!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if(!confirm('حذف هذه الزيارة؟')) return;
   const v = DB.visits.find(x => x.id === id);
   if(v && v.pdf && v.pdf.fileId) deleteDoc('visit_files', v.pdf.fileId);   // حذف المرفق المنفصل معها
@@ -10272,11 +10778,16 @@ function deleteVisit(id) {
 }
 
 function openEditVisit(id) {
+  if(!canDo('edit')) { showToast('🚫 ليس لديك صلاحية التعديل'); return; }
   const v = DB.visits.find(x=>x.id===id);
   if(!v) return;
   populateSelects();
   document.getElementById('ev-id').value = id;
-  document.getElementById('ev-client').value = v.clientId;
+  const isExplore = !!v.exploratory && !visitIsRegistered(v);
+  document.getElementById('ev-exploratory').checked = isExplore;
+  document.getElementById('ev-prospect-name').value = v.prospectName || '';
+  document.getElementById('ev-prospect-contact').value = v.prospectContact || '';
+  document.getElementById('ev-client').value = v.clientId || '';
   document.getElementById('ev-date').value = v.date;
   // أعد فلترة قائمة المشرفين بناءً على العميل المحفوظ
   const evShowAll = document.getElementById('ev-show-all');
@@ -10291,6 +10802,10 @@ function openEditVisit(id) {
   document.getElementById('ev-person').value = v.personId;
   document.getElementById('ev-purpose').value = v.purpose;
   document.getElementById('ev-notes').value = v.notes||'';
+  toggleExploratoryVisit('ev');
+  if(!isExplore) document.getElementById('ev-person').value = v.personId;
+  document.getElementById('ev-purpose').value = v.purpose || 'أخرى';
+  renderCoSupervisorBox('ev', visitPersonIds(v).filter(pid => pid !== v.personId));
   document.getElementById('modal-edit-visit').classList.add('open');
 }
 
@@ -10298,9 +10813,17 @@ function saveEditVisit() {
   const id = document.getElementById('ev-id').value;
   const v = DB.visits.find(x=>x.id===id);
   if(!v) return;
-  v.clientId = document.getElementById('ev-client').value;
+  if(!canDo('edit')) { showToast('🚫 ليس لديك صلاحية التعديل'); return; }
+  const core = readVisitFormCore('ev');
+  if(!core) return;
+  // زيارة استكشافية تم ربطها ببراند مسجّل لاحقاً: تبقى "استكشافية" تاريخياً لكن مرتبطة بالبراند
+  v.exploratory = core.exploratory || (!!v.exploratory && !!core.clientId);
+  v.clientId = core.clientId;
+  if(core.exploratory) { v.prospectName = core.prospectName; v.prospectContact = core.prospectContact; }
+  v.personId = core.personId;
+  v.personIds = core.personIds;
+  v.updatedAt = new Date().toISOString();
   v.date = document.getElementById('ev-date').value;
-  v.personId = document.getElementById('ev-person').value;
   v.purpose = document.getElementById('ev-purpose').value;
   v.notes = document.getElementById('ev-notes').value;
   document.getElementById('modal-edit-visit').classList.remove('open');
@@ -10326,7 +10849,7 @@ function renderTeam() {
   const grid = document.getElementById('team-grid');
   if(DB.team.length===0) { grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="e-icon">👥</div><p>لا يوجد أعضاء فريق</p></div>'; return; }
   grid.innerHTML = DB.team.map(m => {
-    const visits = DB.visits.filter(v=>v.personId===m.id).length;
+    const visits = DB.visits.filter(v=>visitHasPerson(v, m.id)).length;
     const tasks = DB.tasks.filter(t=>t.assignedTo===m.id).length;
     const done = DB.tasks.filter(t=>t.assignedTo===m.id&&t.done).length;
     return `<div class="card" style="padding:20px;">
@@ -10355,7 +10878,7 @@ function renderTeam() {
 }
 
 function deleteMember(id) {
-  if(!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if(!confirm('إزالة هذا العضو؟')) return;
   DB.team = DB.team.filter(m=>m.id!==id);
   deleteDoc('team',id); renderTeam();
@@ -10420,7 +10943,7 @@ function openMemberProfile(memberId) {
 
 function computeMemberStats(memberId) {
   const m = DB.team.find(x => x.id === memberId) || {};
-  const visits = DB.visits.filter(v => v.personId === memberId);
+  const visits = DB.visits.filter(v => visitHasPerson(v, memberId));
   const tasks = DB.tasks.filter(t => t.assignedTo === memberId);
   const tasksDone = tasks.filter(t => t.done);
   // مشاريع: المشرف المسؤول (supervisorId)
@@ -10489,7 +11012,7 @@ function renderProfileOverview(m) {
   });
   const projects = DB.projects.filter(p => p.supervisorId === m.id);
   const recentVisits = DB.visits
-    .filter(v => v.personId === m.id)
+    .filter(v => visitHasPerson(v, m.id))
     .sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
     .slice(0, 5);
   
@@ -10505,7 +11028,7 @@ function renderProfileOverview(m) {
                   <div style="font-weight:600;font-size:13px;">${b.name}</div>
                   <div style="font-size:11px;color:var(--text-muted);">${b.city || b.type || ''}</div>
                 </div>
-                <span style="font-size:11px;color:var(--dark-green);">${DB.visits.filter(v => v.clientId === b.id && v.personId === m.id).length} زيارة</span>
+                <span style="font-size:11px;color:var(--dark-green);">${DB.visits.filter(v => v.clientId === b.id && visitHasPerson(v, m.id)).length} زيارة</span>
               </div>
             `).join('')
         }
@@ -10516,10 +11039,9 @@ function renderProfileOverview(m) {
         ${recentVisits.length === 0
           ? `<div style="font-size:13px;color:var(--text-muted);padding:14px;background:var(--surface);border-radius:8px;text-align:center;">لا توجد زيارات مسجلة</div>`
           : recentVisits.map(v => {
-              const cl = getClient(v.clientId);
               return `<div class="mp-list-item">
                 <div>
-                  <div style="font-weight:600;font-size:13px;">${cl.name}</div>
+                  <div style="font-weight:600;font-size:13px;">${visitBrandLabelHTML(v)}</div>
                   <div style="font-size:11px;color:var(--text-muted);">${v.purpose || 'زيارة عامة'}</div>
                 </div>
                 <span style="font-size:11px;color:var(--text-muted);">${formatDate(v.date)}</span>
@@ -10588,7 +11110,7 @@ function renderProfileBrands(m) {
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
       ${brands.map(b => {
-        const visitsCount = DB.visits.filter(v => v.clientId === b.id && v.personId === m.id).length;
+        const visitsCount = DB.visits.filter(v => v.clientId === b.id && visitHasPerson(v, m.id)).length;
         const tasksCount = DB.tasks.filter(t => t.clientId === b.id && t.assignedTo === m.id).length;
         return `<div class="card" style="padding:14px;">
           <div style="font-weight:700;font-size:14px;color:var(--dark-green);margin-bottom:4px;">${b.name}</div>
@@ -10639,7 +11161,7 @@ function renderProfileProjects(m) {
 
 function renderProfileVisits(m) {
   const visits = DB.visits
-    .filter(v => v.personId === m.id)
+    .filter(v => visitHasPerson(v, m.id))
     .sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
   if(visits.length === 0) {
     return `<div class="mp-empty"><div class="mp-empty-icon">📍</div><p>لا توجد زيارات مسجلة لهذا العضو</p></div>`;
@@ -10657,12 +11179,12 @@ function renderProfileVisits(m) {
         </thead>
         <tbody>
           ${visits.map(v => {
-            const cl = getClient(v.clientId);
+            const others = visitPersonIds(v).filter(x => x !== m.id).map(x => getMember(x).name);
             return `<tr style="border-bottom:1px solid var(--border);">
               <td style="padding:10px;">${formatDate(v.date)}</td>
-              <td style="padding:10px;font-weight:600;">${cl.name}</td>
-              <td style="padding:10px;">${v.purpose || '—'}</td>
-              <td style="padding:10px;color:var(--text-muted);font-size:12px;">${(v.notes||'').slice(0,80)}${(v.notes||'').length>80?'...':''}</td>
+              <td style="padding:10px;font-weight:600;">${visitBrandLabelHTML(v)}${others.length ? `<div style="font-size:10.5px;color:var(--text-muted);font-weight:400;">👥 مع: ${esc(others.join('، '))}</div>` : ''}</td>
+              <td style="padding:10px;">${esc(v.purpose || '—')}</td>
+              <td style="padding:10px;color:var(--text-muted);font-size:12px;">${esc((v.notes||'').slice(0,80))}${(v.notes||'').length>80?'...':''}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -10841,7 +11363,7 @@ async function downloadProfileDoc(index) {
 }
 
 function deleteProfileDoc(index) {
-  if(!canDo('edit')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if(!confirm('حذف هذا المستند نهائياً؟')) return;
   const m = DB.team.find(x => x.id === _currentProfileMemberId);
   if(!m || !m.documents) return;
@@ -10892,7 +11414,8 @@ async function checkFirstUser() {
   if(!db_firestore) return;
   try {
     const snap = await db_firestore.collection('app_users').limit(1).get();
-    if(snap.empty) { switchToRegister(); document.getElementById('reg-admin-warn').style.display='block'; document.getElementById('reg-role').value='admin'; document.getElementById('reg-role').disabled=true; }
+    window._firstUserSetup = snap.empty;
+    if(snap.empty) { switchToRegister(); document.getElementById('reg-admin-warn').style.display='block'; }
   } catch(e){}
 }
 
@@ -11115,7 +11638,7 @@ function applyPermissions() {
   
   window._perm = { 
     canEdit: isAdmin || isPM || isSupervisor || isAssistant, 
-    canDelete: isAdmin || isPM || isAssistant, 
+    canDelete: isAdmin,               // 🔒 الحذف مقفل على مدير الشركة (الأدمن) فقط 
     canAdd: isAdmin || isPM || isSupervisor || isAssistant,
     canManageUsers: isAdmin || isPM,  // PM الآن يقدر يدير (مع قيود في الواجهة)
     isTopAdmin: isAdmin,              // فقط Admin يقدر يعدل/يحذف الـ admin_company
@@ -11128,6 +11651,19 @@ function applyPermissions() {
     isPM: isPM,
     role 
   };
+  // إخفاء كل أزرار الحذف في الواجهة لغير الأدمن (الحماية الفعلية داخل كل دالة حذف + قواعد Firestore)
+  try { document.body.classList.toggle('nsq-no-delete', !isAdmin); } catch(e) {}
+  const navTrash = document.getElementById('nav-trash');
+  if(navTrash) navTrash.style.display = isAdmin ? 'flex' : 'none';
+  const navAudit = document.getElementById('nav-audit');
+  if(navAudit) navAudit.style.display = isAdmin ? 'flex' : 'none';
+}
+
+// حارس موحّد لكل عمليات الحذف — يرجع true إذا كان المستخدم الحالي أدمن
+function requireDelete() {
+  if(canDo('delete')) return true;
+  showToast('🔒 الحذف متاح لمدير الشركة فقط');
+  return false;
 }
 
 function canDo(action) {
@@ -11245,18 +11781,12 @@ async function doLogin() {
     if(btn.disabled){ btn.textContent='دخول'; btn.disabled=false; err.style.display='block'; err.textContent='انتهت المهلة — تحقق من اتصالك بالإنترنت'; }
   }, 8000);
   try {
-    const cred = await auth_fb.signInWithEmailAndPassword(email, pass);
+    // 🔐 لا نحدد أي دور هنا ولا نحفظ كلمة المرور — مستمع onAuthStateChanged يقرأ الدور الحقيقي من app_users
+    attachAuthListener();
+    await auth_fb.signInWithEmailAndPassword(email, pass);
     clearTimeout(loginTimeout);
-    sessionStorage.setItem('nassaq_ap', pass);
-    currentUser = { uid: cred.user.uid, email, name: email, role: 'admin' };
     btn.textContent='دخول'; btn.disabled=false;
-    showApp();
-    db_firestore.collection('app_users').doc(cred.user.uid).get()
-      .then(doc => {
-        if(doc.exists){ currentUser = { uid: cred.user.uid, email, ...doc.data() }; updateUserUI(); applyPermissions(); }
-      }).catch(()=>{});
-    // التحميل يتم مرة واحدة فقط عبر onAuthStateChanged → loadAllFromFirebase (كان يُحمَّل مرتين عند الدخول)
-    if(!window._authListenerAttached) loadAllFromFirebase();
+    document.getElementById('login-pass').value = '';
   } catch(e) {
     btn.textContent='دخول'; btn.disabled=false; err.style.display='block';
     const msgs = {
@@ -11286,24 +11816,34 @@ async function doRegister() {
   const name  = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const pass  = document.getElementById('reg-pass').value;
-  const role  = document.getElementById('reg-role').value || 'admin';
+  // 🔐 التسجيل الذاتي يُنشئ حساباً "بانتظار التفعيل" — مدير الشركة يحدد الصلاحية لاحقاً.
+  //    الاستثناء الوحيد: أول مستخدم في نظام جديد فارغ يصبح مدير الشركة.
+  const role  = window._firstUserSetup ? 'admin_company' : 'pending';
   const err   = document.getElementById('reg-err');
   const btn   = document.getElementById('reg-btn');
   if(!name||!email||!pass){ err.style.display='block'; err.textContent='يرجى تعبئة جميع الحقول'; return; }
   if(pass.length<8){ err.style.display='block'; err.textContent='كلمة المرور يجب 8 أحرف على الأقل'; return; }
   err.style.display='none'; btn.textContent='جاري الإنشاء...'; btn.disabled=true;
   try {
+    window._registering = true;
     const cred = await auth_fb.createUserWithEmailAndPassword(email, pass);
     const uid  = cred.user.uid;
     const userDoc = { uid, name, email, role, createdAt: new Date().toISOString(), createdBy: 'self' };
     await db_firestore.collection('app_users').doc(uid).set(userDoc);
-    currentUser = userDoc;
-    sessionStorage.setItem('nassaq_ap', pass);
-    showToast(`✅ مرحباً ${name}!`);
     btn.textContent='إنشاء الحساب'; btn.disabled=false;
-    showApp();
-    loadAllFromFirebase();
+    if(role === 'pending') {
+      window._registering = false;
+      showToast('✅ تم إنشاء الحساب — بانتظار تفعيل مدير الشركة');
+      showPendingScreen(cred.user, true);
+      return;
+    }
+    window._registering = false;
+    showToast(`✅ مرحباً ${name}!`);
+    attachAuthListener();
+    await handleAuthUser(cred.user);
   } catch(e) {
+    window._registering = false;
+    try { if(auth_fb.currentUser) auth_fb.signOut(); } catch(_) {}
     btn.textContent='إنشاء الحساب'; btn.disabled=false;
     err.style.display='block';
     const msgs = {
@@ -11322,6 +11862,8 @@ function doLogout(){
     return;
   }
   if(!confirm('تسجيل الخروج؟')) return;
+  // 🔐 تنظيف البيانات الحساسة من المتصفح عند الخروج (مهم للأجهزة المشتركة)
+  try { localStorage.removeItem('nassaq_crm_backup'); sessionStorage.removeItem('nassaq_ap'); } catch(e) {}
   auth_fb.signOut().then(() => {
     showToast('✅ تم تسجيل الخروج');
     // onAuthStateChanged سيتولى تنظيف الحالة وإظهار شاشة الدخول
@@ -11350,20 +11892,25 @@ async function createUser() {
   if(!name||!email||!pass){err.style.display='block';err.textContent='يرجى تعبئة جميع الحقول';return;}
   if(pass.length<8){err.style.display='block';err.textContent='كلمة المرور يجب 8 أحرف على الأقل';return;}
   err.style.display='none'; btn.textContent='جاري الإنشاء...'; btn.disabled=true;
-  const savedEmail=currentUser.email, savedPass=sessionStorage.getItem('nassaq_ap')||'';
+  // 🔐 إنشاء الحساب عبر نسخة Firebase ثانوية — جلسة المدير لا تتأثر ولا نحتاج لحفظ كلمة مروره
+  let secAuth = null;
   try {
-    const cred=await auth_fb.createUserWithEmailAndPassword(email,pass);
+    const secApp = firebase.apps.find(a => a.name === 'nsq-user-creator') || firebase.initializeApp(getFirebaseConfig(), 'nsq-user-creator');
+    secAuth = secApp.auth();
+    try { await secAuth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(_) {}
+    const cred=await secAuth.createUserWithEmailAndPassword(email,pass);
     await db_firestore.collection('app_users').doc(cred.user.uid).set({
       uid:cred.user.uid,name,email,role,
       teamMemberId: teamMemberId || null,
       createdAt:new Date().toISOString(),
       createdBy:currentUser.uid
     });
-    if(savedPass) await auth_fb.signInWithEmailAndPassword(savedEmail,savedPass);
+    try { await secAuth.signOut(); } catch(_) {}
     btn.textContent='إنشاء الحساب'; btn.disabled=false;
     closeModal('add-user'); ['nu-name','nu-email','nu-pass'].forEach(id=>document.getElementById(id).value='');
     renderUsers(); showToast(`✅ تم إنشاء حساب ${name}`);
   } catch(e) {
+    try { if(secAuth) await secAuth.signOut(); } catch(_) {}
     btn.textContent='إنشاء الحساب'; btn.disabled=false; err.style.display='block';
     const msgs={'auth/email-already-in-use':'هذا البريد مسجّل مسبقاً','auth/weak-password':'كلمة المرور ضعيفة'};
     err.textContent=msgs[e.code]||'خطأ: '+e.message;
@@ -11415,7 +11962,7 @@ async function changeUserRole(uid,newRole){
 }
 
 async function deleteAppUser(uid){
-  if(!canDo('manage_users')){showToast('🚫 ليس لديك صلاحية');return;}
+  if(!requireDelete()) return;
   if(uid===currentUser.uid){showToast('⚠️ لا يمكنك حذف حسابك الشخصي');return;}
   
   // قيد PM: لا يقدر يحذف admin_company
@@ -11441,7 +11988,7 @@ async function renderUsers() {
   if(!tbody||!db_firestore)return;
   try {
     const snap=await db_firestore.collection('app_users').get();
-    const users=snap.docs.map(d=>d.data());
+    const users=snap.docs.map(d=>d.data()).sort((a,b)=>(a.role==='pending'?0:1)-(b.role==='pending'?0:1));
     DB.app_users = users; // تخزين للاستخدام في فلترة البيانات
     if(users.length===0){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">لا يوجد مستخدمون</td></tr>';return;}
     
@@ -11467,9 +12014,9 @@ async function renderUsers() {
       const showAdminOption = perm.isTopAdmin || currentRole === 'admin_company';
       
       return `<tr>
-      <td><div style="display:flex;align-items:center;gap:8px;"><div class="avatar" style="width:30px;height:30px;font-size:11px;">${initials(u.name||u.email)}</div>
-      <div><div style="font-weight:600;">${u.name||'—'}</div>${isSelf?'<span style="font-size:10px;color:var(--success);">أنت</span>':''}${cannotEditThis?'<span style="font-size:10px;color:#ed8936;display:block;">🔒 محمي - مدير الشركة فقط</span>':''}</div></div></td>
-      <td style="font-size:13px;direction:ltr;text-align:right;">${u.email}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;"><div class="avatar" style="width:30px;height:30px;font-size:11px;">${esc(initials(u.name||u.email))}</div>
+      <div><div style="font-weight:600;">${esc(u.name||'—')}</div>${currentRole==='pending'?'<span style="font-size:10px;color:#dd6b20;display:block;font-weight:700;">⏳ بانتظار التفعيل — حدّد صلاحيته</span>':''}${isSelf?'<span style="font-size:10px;color:var(--success);">أنت</span>':''}${cannotEditThis?'<span style="font-size:10px;color:#ed8936;display:block;">🔒 محمي - مدير الشركة فقط</span>':''}</div></div></td>
+      <td style="font-size:13px;direction:ltr;text-align:right;">${esc(u.email)}</td>
       <td>${cannotEditThis ? 
         `<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#f5e6d3;border:1px dashed #d4a574;border-radius:6px;font-size:13px;color:#8b6f47;cursor:not-allowed;" title="فقط مدير الشركة يقدر يعدّل هذا الحساب">🔒 👑 مدير الشركة</div>` : 
         `<select onchange="changeUserRole('${u.uid}',this.value)" style="font-family:'Tajawal',sans-serif;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;${isSelf?'background:var(--bg-soft);cursor:not-allowed;':''}" ${isSelf?'disabled':''}>
@@ -11478,9 +12025,10 @@ async function renderUsers() {
           <option value="admin_assistant" ${currentRole==='admin_assistant'?'selected':''}>📝 السكرتيرة</option>
           <option value="supervisor" ${currentRole==='supervisor'?'selected':''}>👔 مشرف فرع</option>
           <option value="viewer" ${currentRole==='viewer'?'selected':''}>👁️ مشاهد</option>
+          <option value="pending" ${currentRole==='pending'?'selected':''}>⏳ بانتظار التفعيل (بدون دخول)</option>
         </select>`
       }</td>
-      <td style="font-size:12px;">${linkedMember ? '👔 '+linkedMember.name : '<span style="color:var(--text-muted);">—</span>'} ${cannotEditThis?'':`<button onclick="linkUserToTeam('${u.uid}')" style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:11px;">${linkedMember?'تغيير':'ربط'}</button>`}</td>
+      <td style="font-size:12px;">${linkedMember ? '👔 '+esc(linkedMember.name) : '<span style="color:var(--text-muted);">—</span>'} ${cannotEditThis?'':`<button onclick="linkUserToTeam('${u.uid}')" style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:11px;">${linkedMember?'تغيير':'ربط'}</button>`}</td>
       <td style="font-size:13px;color:var(--text-muted);">${u.createdAt?new Date(u.createdAt).toLocaleDateString('ar-SA'):'—'}</td>
       <td><div style="display:flex;gap:6px;">
         ${isSelf?`<button class="btn btn-outline btn-sm" onclick="openChangePass('${u.uid}')">🔑 كلمة المرور</button>`:''}
@@ -11507,13 +12055,258 @@ async function linkUserToTeam(uid) {
   } catch(e) { showToast('خطأ: '+e.message); }
 }
 
+// ═══════════════════════════════════════════════
+// 🗑️ سلة المحذوفات — عرض واسترجاع (للأدمن فقط)
+// ═══════════════════════════════════════════════
+const TRASH_LABELS = {
+  clients:'🏢 عميل', contracts:'📄 عقد', payments:'💰 دفعة', tasks:'✅ مهمة', visits:'🚶 زيارة',
+  team:'👥 عضو فريق', brands:'🏷️ براند', projects:'🎯 مشروع', brand_sales:'📈 مبيعات براند',
+  brand_plans:'🗓️ خطة براند', visit_plans:'📅 خطة زيارات', recipes:'🍳 وصفة', org_structure:'🏛️ الهيكل', app_users:'🔐 مستخدم'
+};
+window._trashItems = [];
+function trashItemTitle(t) {
+  const d = t.data || {};
+  if(t.collection === 'visits') {
+    const persons = (Array.isArray(d.personIds) && d.personIds.length ? d.personIds : [d.personId]).filter(Boolean).map(id => getMember(id).name).join('، ');
+    return (d.exploratory ? '🔍 ' + (d.prospectName || 'براند غير مسجل') : (getClient(d.clientId).name || '—')) + ' — ' + formatDate(d.date) + (persons ? ' — ' + persons : '');
+  }
+  if(t.collection === 'payments') return formatMoney(d.amount) + ' — ' + (getClient(d.clientId).name || '');
+  if(t.collection === 'contracts') return (d.type || 'عقد') + ' — ' + (getClient(d.clientId).name || '');
+  return d.name || d.title || d.text || d.email || t.docId;
+}
+async function renderTrash(fromFilter) {
+  const tbody = document.getElementById('trash-table');
+  if(!tbody) return;
+  if(!canDo('delete')) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;">🔒 للأدمن فقط</td></tr>'; return; }
+  if(!fromFilter) {
+    if(!db_firestore) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;">غير متصل بالسحابة</td></tr>'; return; }
+    try {
+      const snap = await db_firestore.collection('trash').get();
+      window._trashItems = snap.docs.map(d => d.data()).sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+    } catch(e) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--danger);">خطأ: ' + esc(e.message) + '</td></tr>';
+      return;
+    }
+    const sel = document.getElementById('trash-filter');
+    if(sel) {
+      const cur = sel.value;
+      const cols = [...new Set(window._trashItems.map(t => t.collection))];
+      sel.innerHTML = '<option value="">كل الأنواع</option>' + cols.map(c => `<option value="${esc(c)}">${esc(TRASH_LABELS[c] || c)}</option>`).join('');
+      sel.value = cur;
+    }
+  }
+  const fc = (document.getElementById('trash-filter') || {}).value || '';
+  const q = ((document.getElementById('trash-search') || {}).value || '').trim().toLowerCase();
+  const list = window._trashItems.filter(t => (!fc || t.collection === fc) && (!q || trashItemTitle(t).toLowerCase().includes(q)));
+  const cnt = document.getElementById('trash-count');
+  if(cnt) cnt.textContent = list.length + ' سجل';
+  if(!list.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">السلة فارغة</td></tr>'; return; }
+  tbody.innerHTML = list.map(t => `<tr>
+    <td><span class="badge badge-pending">${esc(TRASH_LABELS[t.collection] || t.collection)}</span></td>
+    <td style="font-weight:600;">${esc(trashItemTitle(t))}</td>
+    <td style="font-size:12px;white-space:nowrap;">${t.deletedAt ? formatDate(t.deletedAt) + ' ' + new Date(t.deletedAt).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
+    <td style="font-size:12px;">${esc(t.deletedBy || '—')}</td>
+    <td><div style="display:flex;gap:6px;">
+      <button class="btn btn-success btn-sm" data-id="${esc(t.id)}" onclick="restoreFromTrash(this.dataset.id)">♻️ استرجاع</button>
+      <button class="btn btn-danger btn-sm" data-id="${esc(t.id)}" onclick="purgeTrashItem(this.dataset.id)">حذف نهائي</button>
+    </div></td>
+  </tr>`).join('');
+}
+// ═══════════════════════════════════════════════
+// 📜 تقارير التعديل والحذف (للأدمن فقط)
+// ═══════════════════════════════════════════════
+const AUDIT_ACTIONS = { create:{t:'➕ إضافة',c:'#2f855a'}, update:{t:'✏️ تعديل',c:'#2b6cb0'}, delete:{t:'🗑️ حذف',c:'#c53030'}, restore:{t:'♻️ استرجاع',c:'#805ad5'} };
+const FIELD_LABELS = {
+  name:'الاسم', clientId:'البراند/العميل', personId:'المشرف الرئيسي', personIds:'المشرفون', date:'التاريخ', purpose:'الغرض', notes:'الملاحظات',
+  exploratory:'زيارة استكشافية', prospectName:'اسم البراند غير المسجّل', prospectContact:'التواصل', projectId:'المشروع', pdf:'المرفق',
+  status:'الحالة', amount:'المبلغ', totalValue:'قيمة العقد', startDate:'تاريخ البداية', endDate:'تاريخ النهاية', phone:'الجوال', email:'البريد',
+  role:'المسمى', visitRate:'سعر الزيارة', supervisorId:'المشرف المسؤول', supervisorIds:'المشرفون', phases:'المراحل', budget:'الميزانية',
+  priority:'الأولوية', description:'الوصف', archived:'الأرشفة', tasks:'المهام', text:'نص المهمة', assignedTo:'المكلّف', done:'منجزة',
+  due:'الاستحقاق', method:'طريقة الدفع', type:'النوع', city:'المدينة', documents:'المستندات', photo:'الصورة', avatar:'الأفاتار'
+};
+window._auditItems = [];
+window._auditShowAll = false;
+function auditFilters() {
+  const v = id => ((document.getElementById(id) || {}).value || '');
+  return { action: v('au-action'), col: v('au-col'), user: v('au-user'), from: v('au-from'), to: v('au-to'), q: v('au-q').trim().toLowerCase() };
+}
+function auditFiltered() {
+  const f = auditFilters();
+  return window._auditItems.filter(a => {
+    if(f.action && a.action !== f.action) return false;
+    if(f.col && a.collection !== f.col) return false;
+    if(f.user && a.byUid !== f.user) return false;
+    const day = (a.at || '').slice(0, 10);
+    if(f.from && day < f.from) return false;
+    if(f.to && day > f.to) return false;
+    if(f.q && !((a.title || '') + ' ' + (a.by || '')).toLowerCase().includes(f.q)) return false;
+    return true;
+  });
+}
+function auditTime(at) { return at ? formatDate(at) + ' ' + new Date(at).toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' }) : '—'; }
+async function renderAudit(fromFilter) {
+  const tbody = document.getElementById('audit-table');
+  if(!tbody) return;
+  if(!canDo('delete')) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;">🔒 للأدمن فقط</td></tr>'; return; }
+  if(!fromFilter) {
+    window._auditShowAll = false;
+    if(!db_firestore) return;
+    try {
+      const snap = await db_firestore.collection('audit_log').get();
+      window._auditItems = snap.docs.map(d => d.data()).sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+    } catch(e) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--danger);">خطأ: ' + esc(e.message) + '</td></tr>'; return; }
+    const colSel = document.getElementById('au-col'), userSel = document.getElementById('au-user');
+    if(colSel) { const cur = colSel.value; colSel.innerHTML = '<option value="">كل الأقسام</option>' + [...new Set(window._auditItems.map(a => a.collection))].map(c => `<option value="${esc(c)}">${esc(TRASH_LABELS[c] || c)}</option>`).join(''); colSel.value = cur; }
+    if(userSel) {
+      const cur = userSel.value; const users = {};
+      window._auditItems.forEach(a => { if(a.byUid) users[a.byUid] = a.by; });
+      userSel.innerHTML = '<option value="">كل المستخدمين</option>' + Object.entries(users).map(([u, n]) => `<option value="${esc(u)}">${esc(n)}</option>`).join('');
+      userSel.value = cur;
+    }
+  }
+  const list = auditFiltered();
+  const cnt = (act) => list.filter(a => a.action === act).length;
+  const st = document.getElementById('audit-stats');
+  if(st) st.innerHTML = `
+    <div class="stat-card"><div class="stat-label">إجمالي العمليات</div><div class="stat-value">${list.length}</div><div class="stat-sub">حسب الفلاتر</div></div>
+    <div class="stat-card"><div class="stat-label">✏️ تعديلات</div><div class="stat-value" style="color:#2b6cb0;">${cnt('update')}</div><div class="stat-sub">يمكن التراجع عنها</div></div>
+    <div class="stat-card"><div class="stat-label">🗑️ عمليات حذف</div><div class="stat-value" style="color:#c53030;">${cnt('delete')}</div><div class="stat-sub">يمكن استرجاعها</div></div>
+    <div class="stat-card"><div class="stat-label">➕ إضافات</div><div class="stat-value" style="color:#2f855a;">${cnt('create')}</div><div class="stat-sub">♻️ ${cnt('restore')} استرجاع</div></div>`;
+  const c = document.getElementById('audit-count'); if(c) c.textContent = list.length + ' عملية';
+  if(!list.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">لا توجد عمليات مسجّلة</td></tr>'; document.getElementById('audit-more').style.display = 'none'; return; }
+  const shown = window._auditShowAll ? list : list.slice(0, 150);
+  document.getElementById('audit-more').style.display = shown.length < list.length ? 'block' : 'none';
+  tbody.innerHTML = shown.map(a => {
+    const act = AUDIT_ACTIONS[a.action] || { t: a.action, c: '#666' };
+    const ch = (a.changes || []).map(k => FIELD_LABELS[k] || k);
+    let btns = `<button class="btn btn-outline btn-sm" data-id="${esc(a.id)}" onclick="openAuditDetail(this.dataset.id)">👁️ التفاصيل</button>`;
+    if(a.action === 'update' && a.before) btns += ` <button class="btn btn-outline btn-sm" data-id="${esc(a.id)}" onclick="revertAuditEntry(this.dataset.id)" title="إرجاع السجل كما كان قبل هذا التعديل">↩️ تراجع</button>`;
+    if(a.action === 'delete' && a.trashId) btns += ` <button class="btn btn-success btn-sm" data-id="${esc(a.trashId)}" onclick="restoreFromTrash(this.dataset.id)">♻️ استرجاع</button>`;
+    return `<tr>
+      <td style="font-size:12px;white-space:nowrap;">${auditTime(a.at)}</td>
+      <td style="font-size:12.5px;">${esc(a.by || '—')}</td>
+      <td><span style="font-weight:700;color:${act.c};white-space:nowrap;">${act.t}</span></td>
+      <td style="font-size:12px;">${esc(TRASH_LABELS[a.collection] || a.collection)}</td>
+      <td style="font-weight:600;max-width:260px;">${esc(a.title || a.docId)}</td>
+      <td style="font-size:11.5px;color:var(--text-muted);max-width:220px;">${esc(ch.join('، ') || '—')}</td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap;">${btns}</div></td>
+    </tr>`;
+  }).join('');
+}
+function openAuditDetail(id) {
+  const a = window._auditItems.find(x => x.id === id);
+  if(!a) return;
+  const act = AUDIT_ACTIONS[a.action] || { t: a.action };
+  document.getElementById('audit-detail-title').textContent = act.t + ' — ' + (TRASH_LABELS[a.collection] || a.collection);
+  let html = `<div style="font-size:13px;line-height:1.9;margin-bottom:12px;">
+    <div><b>السجل:</b> ${esc(a.title || a.docId)}</div>
+    <div><b>بواسطة:</b> ${esc(a.by || '—')} — ${esc(roleLabelText(a.byRole) || '')}</div>
+    <div><b>الوقت:</b> ${auditTime(a.at)}</div></div>`;
+  if(a.diff && Object.keys(a.diff).length) {
+    html += `<table><thead><tr><th>الحقل</th><th>قبل التعديل</th><th>بعد التعديل</th></tr></thead><tbody>` +
+      Object.entries(a.diff).map(([k, d]) => `<tr><td style="font-weight:700;">${esc(FIELD_LABELS[k] || k)}</td>
+        <td style="background:#fff5f5;font-size:12px;white-space:pre-wrap;">${esc(d.from || '—')}</td>
+        <td style="background:#f0fff4;font-size:12px;white-space:pre-wrap;">${esc(d.to || '—')}</td></tr>`).join('') + `</tbody></table>`;
+  } else if(a.action === 'delete') {
+    html += `<div style="background:#fff5f5;padding:10px;border-radius:8px;font-size:13px;">نسخة كاملة من السجل المحذوف محفوظة في سلة المحذوفات ويمكن استرجاعها.</div>`;
+  }
+  html += `<div class="form-actions" style="margin-top:16px;"><button class="btn btn-outline" onclick="closeModal('audit-detail')">إغلاق</button>` +
+    (a.action === 'update' && a.before ? `<button class="btn btn-primary" data-id="${esc(a.id)}" onclick="closeModal('audit-detail');revertAuditEntry(this.dataset.id)">↩️ تراجع عن هذا التعديل</button>` : '') +
+    (a.action === 'delete' && a.trashId ? `<button class="btn btn-success" data-id="${esc(a.trashId)}" onclick="closeModal('audit-detail');restoreFromTrash(this.dataset.id)">♻️ استرجاع</button>` : '') + `</div>`;
+  document.getElementById('audit-detail-body').innerHTML = html;
+  openModal('audit-detail');
+}
+// دمج النسخة السابقة مع الحالية: الحقول المختصرة "[ملف]" تؤخذ من النسخة الحالية
+function _mergeRevert(prev, cur) {
+  if(prev === '[ملف]') return cur;
+  if(Array.isArray(prev)) return prev.map((x, i) => _mergeRevert(x, Array.isArray(cur) ? cur[i] : undefined));
+  if(prev && typeof prev === 'object') { const r = {}; Object.keys(prev).forEach(k => { r[k] = _mergeRevert(prev[k], cur && typeof cur === 'object' ? cur[k] : undefined); }); return r; }
+  return prev;
+}
+async function revertAuditEntry(id) {
+  if(!canDo('delete')) return;
+  const a = window._auditItems.find(x => x.id === id);
+  if(!a || !a.before) return;
+  if(!confirm('إرجاع "' + (a.title || a.docId) + '" إلى ما كان عليه قبل هذا التعديل؟\n(التعديلات اللاحقة على نفس السجل ستُستبدل — وسيُسجَّل التراجع كتعديل جديد يمكن التراجع عنه أيضاً)')) return;
+  try {
+    const snap = await db_firestore.collection(a.collection).doc(a.docId).get();
+    const cur = snap.exists ? snap.data() : {};
+    const restored = _mergeRevert(a.before, cur);
+    restored.id = a.docId;
+    restored.updatedAt = new Date().toISOString();
+    if(Array.isArray(DB[a.collection])) {
+      const i = DB[a.collection].findIndex(x => x.id === a.docId);
+      if(i >= 0) DB[a.collection][i] = restored; else DB[a.collection].push(restored);
+    }
+    await saveDoc(a.collection, restored);
+    showToast('↩️ تم التراجع عن التعديل');
+    setTimeout(() => renderAudit(), 600);
+  } catch(e) { showToast('⚠️ تعذّر التراجع: ' + e.message); }
+}
+function exportAuditCSV() {
+  const list = auditFiltered();
+  if(!list.length) { showToast('لا توجد عمليات للتصدير'); return; }
+  const rows = [['الوقت', 'المستخدم', 'العملية', 'القسم', 'السجل', 'الحقول المتغيرة']];
+  list.forEach(a => rows.push([auditTime(a.at), a.by || '', (AUDIT_ACTIONS[a.action] || {}).t || a.action, TRASH_LABELS[a.collection] || a.collection, a.title || a.docId, (a.changes || []).map(k => FIELD_LABELS[k] || k).join('، ')]));
+  const cell = c => { let t = String(c); if(/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
+  const blob = new Blob(['\uFEFF' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'سجل-التعديل-والحذف-' + localISODate(new Date()) + '.csv';
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(link.href), 3000);
+}
+function printAuditReport() {
+  const list = auditFiltered();
+  if(!list.length) { showToast('لا توجد عمليات للطباعة'); return; }
+  const f = auditFilters();
+  const w = window.open('', '_blank');
+  if(!w) { showToast('⚠️ النوافذ المنبثقة محظورة'); return; }
+  const rowsHtml = list.map((a, i) => `<tr><td>${i + 1}</td><td>${auditTime(a.at)}</td><td>${esc(a.by || '')}</td><td>${(AUDIT_ACTIONS[a.action] || {}).t || esc(a.action)}</td><td>${esc(TRASH_LABELS[a.collection] || a.collection)}</td><td>${esc(a.title || a.docId)}</td><td>${esc((a.changes || []).map(k => FIELD_LABELS[k] || k).join('، '))}</td></tr>`).join('');
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تقرير التعديل والحذف — نسق</title>
+    <style>body{font-family:Tajawal,Arial,sans-serif;padding:24px;color:#2d3748}h1{color:#7a1515;margin:0 0 6px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#7a1515;color:#fff;padding:7px;text-align:right}td{border:1px solid #e2e8f0;padding:6px;vertical-align:top}tr:nth-child(even) td{background:#fbf8f2}@media print{button{display:none}@page{size:A4 landscape;margin:1cm}}</style></head><body>
+    <h1>📜 تقرير عمليات التعديل والحذف</h1>
+    <p style="font-size:13px;color:#555;">${f.from || f.to ? 'الفترة: ' + (f.from || 'البداية') + ' — ' + (f.to || 'اليوم') + ' · ' : ''}عدد العمليات: <b>${list.length}</b> · تعديل: <b>${list.filter(a => a.action === 'update').length}</b> · حذف: <b>${list.filter(a => a.action === 'delete').length}</b> · صدر في ${auditTime(new Date().toISOString())}</p>
+    <table><thead><tr><th>#</th><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>القسم</th><th>السجل</th><th>الحقول المتغيرة</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+    <button onclick="window.print()" style="margin-top:16px;padding:8px 24px;">🖨️ طباعة</button></body></html>`);
+  w.document.close();
+}
+
+async function restoreFromTrash(trashId) {
+  if(!canDo('delete')) return;
+  let t = window._trashItems.find(x => x.id === trashId);
+  if(!t && db_firestore) {   // استدعاء من صفحة التقارير: اجلب السجل من السلة مباشرة
+    try { const snap = await db_firestore.collection('trash').doc(trashId).get(); if(snap.exists) t = snap.data(); } catch(_) {}
+  }
+  if(!t || !t.collection || !t.docId) { showToast('ℹ️ السجل غير موجود في السلة (ربما استُرجع مسبقاً)'); return; }
+  if(!confirm('استرجاع هذا السجل إلى مكانه الأصلي؟')) return;
+  try {
+    const data = Object.assign({}, t.data || {}, { id: t.docId });
+    await db_firestore.collection(t.collection).doc(t.docId).set(data);
+    await db_firestore.collection('trash').doc(trashId).delete();
+    logAudit('restore', t.collection, t.docId, data, null);
+    if(Array.isArray(DB[t.collection]) && !DB[t.collection].find(x => x.id === t.docId)) DB[t.collection].push(data);
+    window._trashItems = window._trashItems.filter(x => x.id !== trashId);
+    showToast('♻️ تم استرجاع السجل');
+    if(currentPageName() === 'audit') setTimeout(() => renderAudit(), 500); else renderTrash();
+  } catch(e) { showToast('⚠️ تعذّر الاسترجاع: ' + e.message); }
+}
+async function purgeTrashItem(trashId) {
+  if(!canDo('delete')) return;
+  if(!confirm('حذف نهائي من السلة؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+  try {
+    await db_firestore.collection('trash').doc(trashId).delete();
+    window._trashItems = window._trashItems.filter(x => x.id !== trashId);
+    renderTrash(true);
+    showToast('🗑️ تم الحذف النهائي');
+  } catch(e) { showToast('⚠️ ' + e.message); }
+}
+
 function showFirstSetup(){}
 function createFirstAdmin(){}
 
-document.addEventListener('DOMContentLoaded',()=>{
-  const lp=document.getElementById('login-pass');
-  if(lp) lp.addEventListener('input',()=>sessionStorage.setItem('nassaq_ap',lp.value));
-});
+// 🔐 (أُزيل: كان يتم حفظ كلمة المرور نصاً صريحاً في sessionStorage مع كل ضغطة زر)
+try { sessionStorage.removeItem('nassaq_ap'); } catch(e) {}
 
 // ═══════════════════════════════════════════════
 // MOTIVATIONAL QUOTES + BOOT SPLASH
@@ -11709,7 +12502,7 @@ function saveEditBrand() {
 }
 
 function deleteBrand(id) {
-  if(!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if(!confirm('حذف هذا البراند؟')) return;
   DB.brands = DB.brands.filter(b=>b.id!==id);
   deleteDoc('brands', id);
@@ -11838,16 +12631,21 @@ function renderVisitBilling() {
 
   // احتساب حسب المشرف
   const byPerson = {};
+  // 👥 الزيارة المشتركة تُحتسب كاملة لكل مشرف مشارك فيها (ومنها الزيارات الاستكشافية)
   filtered.forEach(v => {
-    const m = getMember(v.personId);
-    const cl = getClient(v.clientId);
-    if(!byPerson[v.personId]) byPerson[v.personId] = { 
-      id: v.personId, name: m.name, count: 0, brands: new Set(), visits: [],
-      rate: getRateFor(v.personId), custom: isCustomRate(v.personId)
-    };
-    byPerson[v.personId].count++;
-    byPerson[v.personId].brands.add(cl.name);
-    byPerson[v.personId].visits.push(v);
+    const bn = visitBrandName(v) + (v.exploratory ? ' 🔍' : '');
+    visitPersonIds(v).forEach(pid => {
+      const m = getMember(pid);
+      if(!byPerson[pid]) byPerson[pid] = { 
+        id: pid, name: m.name, count: 0, exploreCount: 0, sharedCount: 0, brands: new Set(), visits: [],
+        rate: getRateFor(pid), custom: isCustomRate(pid)
+      };
+      byPerson[pid].count++;
+      if(v.exploratory) byPerson[pid].exploreCount++;
+      if(visitPersonIds(v).length > 1) byPerson[pid].sharedCount++;
+      byPerson[pid].brands.add(bn);
+      byPerson[pid].visits.push(v);
+    });
   });
 
   const rows = Object.values(byPerson).sort((a,b) => b.count - a.count);
@@ -11902,12 +12700,12 @@ function renderVisitBilling() {
         </td>
         <td><div style="display:flex;align-items:center;gap:8px;">
           ${avatarHTML}
-          <span style="font-weight:600;${isExcluded ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${r.name}</span>
+          <span style="font-weight:600;${isExcluded ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(r.name)}</span>
         </div></td>
-        <td><span style="font-size:18px;font-weight:700;color:var(--dark-green);">${r.count}</span> زيارة</td>
+        <td><span style="font-size:18px;font-weight:700;color:var(--dark-green);">${r.count}</span> زيارة${(r.exploreCount || r.sharedCount) ? `<div style="font-size:10.5px;color:var(--text-muted);">${r.exploreCount ? '🔍 ' + r.exploreCount + ' استكشافية' : ''}${r.exploreCount && r.sharedCount ? ' · ' : ''}${r.sharedCount ? '👥 ' + r.sharedCount + ' مشتركة' : ''}</div>` : ''}</td>
         <td>${r.rate.toLocaleString('ar-SA')} ر.س ${rateBadge}</td>
         <td><span class="amount-big" style="font-size:16px;${isExcluded ? 'text-decoration:line-through;color:#999;' : ''}">${(r.count * r.rate).toLocaleString('ar-SA')} ر.س</span></td>
-        <td style="font-size:12px;color:var(--text-muted);">${[...r.brands].join(' · ')}</td>
+        <td style="font-size:12px;color:var(--text-muted);">${esc([...r.brands].join(' · '))}</td>
       </tr>
     `;
     }).join('');
@@ -11932,15 +12730,14 @@ function renderVisitBilling() {
   } else {
     const sortedV = [...filtered].sort((a,b) => new Date(a.date)-new Date(b.date));
     detailTbody.innerHTML = sortedV.map(v => {
-      const m = getMember(v.personId);
-      const cl = getClient(v.clientId);
+      const pids = visitPersonIds(v);
       return `<tr>
-        <td><div style="display:flex;align-items:center;gap:6px;">
-          <div class="avatar" style="width:26px;height:26px;font-size:10px;">${initials(m.name)}</div>${m.name}
-        </div></td>
-        <td style="font-weight:600;">${cl.name}</td>
+        <td>${pids.map(pid => { const m = getMember(pid); return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
+          <div class="avatar" style="width:26px;height:26px;font-size:10px;">${esc(initials(m.name))}</div>${esc(m.name)}
+        </div>`; }).join('')}${pids.length > 1 ? '<div style="font-size:10.5px;color:#2d5a4a;font-weight:700;">👥 تُحتسب لكل مشرف</div>' : ''}</td>
+        <td style="font-weight:600;">${visitBrandLabelHTML(v)}</td>
         <td>${formatDate(v.date)}</td>
-        <td><span class="badge badge-pending">${v.purpose}</span></td>
+        <td><span class="badge badge-pending">${esc(v.purpose || '—')}</span></td>
       </tr>`;
     }).join('');
   }
@@ -11971,9 +12768,11 @@ function printVisitBilling() {
   }
   const byPerson = {};
   filtered.forEach(v => {
-    const m = getMember(v.personId);
-    if(!byPerson[v.personId]) byPerson[v.personId] = { id: v.personId, name: m.name, count: 0, rate: getRateFor(v.personId) };
-    byPerson[v.personId].count++;
+    visitPersonIds(v).forEach(pid => {
+      const m = getMember(pid);
+      if(!byPerson[pid]) byPerson[pid] = { id: pid, name: m.name, count: 0, rate: getRateFor(pid) };
+      byPerson[pid].count++;
+    });
   });
   // فلترة المستبعدين
   const personRows = Object.values(byPerson).filter(r => !window._vbExcluded.has(r.id));
@@ -12001,7 +12800,7 @@ function printVisitBilling() {
       <thead><tr><th>#</th><th>اسم المشرف</th><th>عدد الزيارات</th><th>قيمة الزيارة (ر.س)</th><th>الإجمالي (ر.س)</th></tr></thead>
       <tbody>
         ${personRows.map((r,i) => `
-          <tr><td>${i+1}</td><td>${r.name}</td><td>${r.count}</td>
+          <tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.count}</td>
           <td>${r.rate.toLocaleString('ar-SA')}</td>
           <td style="font-weight:700;">${(r.count*r.rate).toLocaleString('ar-SA')}</td></tr>
         `).join('')}
@@ -12013,6 +12812,7 @@ function printVisitBilling() {
         </tr>
       </tbody>
     </table>
+    <p style="font-size:12px;color:#666;">ملاحظة: الزيارة التي يشارك فيها أكثر من مشرف تُحتسب لكل مشرف مشارك، والزيارات الاستكشافية (براندات غير مسجّلة) محتسبة ضمن العدد.</p>
     <div class="footer">
       <div class="sign-box">إعداد<br><strong>حاتم عطية</strong><br><span style="font-size:11px;color:#666;">مدير العمليات والشؤون المالية</span></div>
       <div class="sign-box">اعتماد<br><strong>أحمد القحطاني</strong><br><span style="font-size:11px;color:#666;">المدير العام</span></div>
@@ -12312,10 +13112,15 @@ function saveReportAsVisit() {
   const allBrands = [...DB.clients, ...DB.brands];
   const brandObj = allBrands.find(b=>b.name===d.brand);
   const memberObj = DB.team.find(m=>m.name===d.inspector);
+  if(!canDo('add')) { showToast('🚫 ليس لديك صلاحية الإضافة'); return; }
   const obj = {
     id: genId(),
-    clientId: brandObj?.id || genId(),
+    // براند غير موجود في المنصة → تُسجَّل كزيارة استكشافية بالاسم (بدل معرّف وهمي لا يرتبط بشيء)
+    clientId: brandObj?.id || '',
+    exploratory: !brandObj,
+    prospectName: brandObj ? '' : (d.brand || ''),
     personId: memberObj?.id || '',
+    personIds: memberObj ? [memberObj.id] : [],
     date: document.getElementById('vr-date').value,
     purpose: d.type,
     notes: d.content.substring(0,500),
@@ -12525,7 +13330,7 @@ function countActualVisits(supervisorId, year, month, day, brandId) {
     targetBrandName = (targetBrand && (targetBrand.name || targetBrand.brandName) || '').trim().toLowerCase();
   }
   return visits.filter(v => {
-    if(v.personId !== supervisorId) return false;
+    if(!visitHasPerson(v, supervisorId)) return false;
     if(!v.date) return false;
     const d = new Date(v.date);
     if(d.getFullYear() !== year) return false;
@@ -13100,7 +13905,7 @@ async function saveVisitPlan() {
 
 // حذف خطة
 async function deleteVisitPlan(planKey) {
-  if(!canDo('delete')) { showToast('🚫 لا تملك صلاحية'); return; }
+  if(!requireDelete()) return;
   if(!confirm('⚠️ حذف خطة هذا المشرف لهذا الشهر؟')) return;
   
   DB.visit_plans = (DB.visit_plans || []).filter(p => p.id !== planKey);
@@ -13256,15 +14061,8 @@ function saveBrandPlans(plans, changedKey){
     }
     
     // حفظ في Firestore + localStorage احتياطي
-    if(tasks.length === 0) {
-      // لو القائمة فاضية، احذف الوثيقة
-      DB.brand_plans = DB.brand_plans.filter(d => d.id !== key);
-      if(db_firestore) {
-        db_firestore.collection('brand_plans').doc(key).delete().catch(e => console.error('Delete plan error:', e));
-      }
-    } else {
-      saveDoc('brand_plans', docObj);
-    }
+    // (القائمة الفارغة تُحفظ كوثيقة فارغة بدل حذفها — الحذف من السحابة مقفل على الأدمن فقط)
+    saveDoc('brand_plans', docObj);
   });
   
   // نسخة احتياطية محلية
@@ -13412,7 +14210,7 @@ function renderBrandPlan(){
                 <!-- أزرار -->
                 <div style="display:flex;gap:6px;flex-shrink:0;">
                   ${t.assignee ? `<button class="btn-whatsapp btn-whatsapp-sm" onclick="sendBrandTaskViaWhatsApp('${key}',${i})" title="إرسال للمكلَّف عبر واتساب">📱</button>` : ''}
-                  <button onclick="openBrandTaskNote('${key}',${i},'${t.title.replace(/'/g,"\\'")}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;" title="إضافة ملاحظة">💬</button>
+                  <button onclick="openBrandTaskNote('${key}',${i},'${esc(String(t.title||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;" title="إضافة ملاحظة">💬</button>
                   <button onclick="deleteBrandTask('${key}',${i})" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;color:var(--danger);" title="حذف">🗑️</button>
                 </div>
               </div>
@@ -13465,6 +14263,7 @@ function toggleBrandTask(key, idx){
 }
 
 function deleteBrandTask(key, idx){
+  if(!requireDelete()) return;
   if(!confirm('حذف هذه المهمة؟')) return;
   const plans = getBrandPlans();
   plans[key].splice(idx,1);
@@ -13649,7 +14448,7 @@ function renderSupervisorRating(){
     cards.innerHTML = members.map(m => {
       const ratings = data.ratings.filter(r=>r.memberId===m.id && r.month===monthStr);
       const visitCount = DB.visits.filter(v=>{
-        if(v.personId!==m.id) return false;
+        if(!visitHasPerson(v, m.id)) return false;
         const d=new Date(v.date);
         return d.getMonth()===month && d.getFullYear()===year;
       }).length;
@@ -13783,6 +14582,7 @@ function downloadReport(id){
 }
 
 function deleteReport(id){
+  if(!requireDelete()) return;
   if(!confirm('حذف هذا التقرير؟')) return;
   const data = getSupervisorData();
   data.reports = data.reports.filter(r=>r.id!==id);
@@ -15557,10 +16357,10 @@ async function saveRecipe() {
 
 // ─── حذف ───
 async function deleteRecipe(id) {
-  if (!canDo('delete')) { showToast('🚫 ليس لديك صلاحية الحذف'); return; }
+  if(!requireDelete()) return;
   if (!confirm('هل أنت متأكد من حذف هذه الوصفة؟')) return;
   try {
-    if (db_firestore) await db_firestore.collection('recipes').doc(id).delete();
+    await deleteDoc('recipes', id);
     DB.recipes = DB.recipes.filter(r => r.id !== id);
     closeModal('recipe-detail');
     renderRecipes();
