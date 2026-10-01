@@ -1,0 +1,55 @@
+rules_version = '2';
+// ═══════════════════════════════════════════════════════════════
+// قواعد أمان Firestore — منصة نسق
+// تُطبَّق على الخادم ولا يمكن تجاوزها من المتصفح (عكس فحوصات الواجهة).
+// • الحذف: مدير الشركة فقط (admin_company / admin)
+// • الإضافة والتعديل: الأدوار التشغيلية (ليس المشاهد ولا الحساب المعلّق)
+// • سجل النشاط وسلة المحذوفات: قراءة للأدمن فقط، ولا يمكن تعديل السجل أو مسحه إلا من الأدمن
+// • الحساب الجديد المسجَّل ذاتياً يبقى "pending" بلا أي صلاحية حتى يفعّله الأدمن
+// ═══════════════════════════════════════════════════════════════
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function profilePath() { return /databases/$(database)/documents/app_users/$(request.auth.uid); }
+    function hasProfile() { return signedIn() && exists(profilePath()); }
+    function role() { return hasProfile() ? get(profilePath()).data.get('role', 'pending') : 'none'; }
+
+    function isAdmin()   { return role() in ['admin_company', 'admin']; }
+    function isManager() { return role() in ['admin_company', 'admin', 'pm', 'editor']; }
+    function canWrite()  { return role() in ['admin_company', 'admin', 'pm', 'editor', 'admin_assistant', 'supervisor']; }
+    function canRead()   { return canWrite() || role() == 'viewer'; }
+    function adminRole(r) { return r in ['admin_company', 'admin']; }
+
+    // ── المستخدمون والصلاحيات ──
+    match /app_users/{uid} {
+      allow read: if signedIn();
+      allow create: if isAdmin()
+                    || (isManager() && !adminRole(request.resource.data.role))
+                    || (signedIn() && request.auth.uid == uid && request.resource.data.role == 'pending');
+      allow update: if isAdmin()
+                    || (isManager() && !adminRole(resource.data.role) && !adminRole(request.resource.data.role))
+                    || (signedIn() && request.auth.uid == uid && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    // ── سلة المحذوفات ──
+    match /trash/{id} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // ── سجل النشاط (لا يُعدَّل) ──
+    match /audit_log/{id} {
+      allow create: if canWrite() && request.resource.data.byUid == request.auth.uid;
+      allow read, delete: if isAdmin();
+      allow update: if false;
+    }
+
+    // ── كل بيانات المنصة الأخرى ──
+    match /{col}/{id} {
+      allow read: if canRead() && !(col in ['app_users', 'trash', 'audit_log']);
+      allow create, update: if canWrite() && !(col in ['app_users', 'trash', 'audit_log']);
+      allow delete: if isAdmin() && !(col in ['app_users', 'trash', 'audit_log']);
+    }
+  }
+}
