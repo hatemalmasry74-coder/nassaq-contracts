@@ -2947,6 +2947,7 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
       <h2>🗑️ سلة المحذوفات</h2>
       <div class="topbar-actions">
         <span style="font-size:12px;color:var(--text-muted);">كل سجل يُحذف تُحفظ نسخة منه هنا ويمكن استرجاعه</span>
+        <button class="btn btn-outline btn-sm" onclick="scanLocalBackupForLost(true)" title="البحث في النسخة المحلية لهذا الجهاز عن سجلات حُذفت قبل التحديث">🛟 فحص نسخة هذا الجهاز</button>
         <button class="btn btn-outline btn-sm" onclick="renderTrash()">🔄 تحديث</button>
       </div>
     </div>
@@ -5045,6 +5046,8 @@ function loadAllFromFirebase() {
     if(currentUser && typeof updateUserUI === 'function') updateUserUI();
     refreshCurrentPage(true);
     showToast(_fsPersistence ? '✅ تم تحميل البيانات — المزامنة اللحظية مفعّلة' : '✅ تم الاتصال بالسحابة وتحميل البيانات');
+    // 🛟 البحث عن سجلات حُذفت قبل نظام السلة وما زالت في النسخة المحلية لهذا الجهاز
+    setTimeout(() => { try { scanLocalBackupForLost(false); } catch(e) { console.warn('recovery scan', e); } }, 12000);
     try { showWelcomeOverlay(); } catch(e) { console.warn('welcome', e); }
     // نقل المرفقات القديمة المضمّنة إلى المجموعات المنفصلة (مرة واحدة، بعد استقرار البيانات من السحابة)
     setTimeout(() => { try { migrateEmbeddedFiles().catch(e => console.error('Migration error:', e)); } catch(e) {} }, 8000);
@@ -11863,7 +11866,8 @@ function doLogout(){
   }
   if(!confirm('تسجيل الخروج؟')) return;
   // 🔐 تنظيف البيانات الحساسة من المتصفح عند الخروج (مهم للأجهزة المشتركة)
-  try { localStorage.removeItem('nassaq_crm_backup'); sessionStorage.removeItem('nassaq_ap'); } catch(e) {}
+  // (النسخة المحلية لا تُمسح قبل فحصها بحثاً عن سجلات محذوفة قديماً يمكن استرجاعها)
+  try { if(localStorage.getItem(RECOVERY_FLAG)) localStorage.removeItem('nassaq_crm_backup'); sessionStorage.removeItem('nassaq_ap'); } catch(e) {}
   auth_fb.signOut().then(() => {
     showToast('✅ تم تسجيل الخروج');
     // onAuthStateChanged سيتولى تنظيف الحالة وإظهار شاشة الدخول
@@ -12074,6 +12078,77 @@ function trashItemTitle(t) {
   if(t.collection === 'contracts') return (d.type || 'عقد') + ' — ' + (getClient(d.clientId).name || '');
   return d.name || d.title || d.text || d.email || t.docId;
 }
+// ═══════════════════════════════════════════════
+// 🛟 استرجاع ما حُذف قبل نظام السلة — من النسخ المحلية على الأجهزة
+// كل جهاز فتح المنصة سابقاً يحتفظ بنسخة احتياطية (nassaq_crm_backup) من آخر حفظ تم عليه.
+// عند أول فتح بعد التحديث: أي سجل موجود في نسخة الجهاز وغير موجود في السحابة (بعد التحقق من الخادم)
+// يُرسل إلى "صندوق الاسترجاع" ليظهر للأدمن في سلة المحذوفات ويقرر استرجاعه أو تجاهله.
+// ═══════════════════════════════════════════════
+const RECOVERY_FLAG = 'nsq_recovery_scan_v1';
+const RECOVER_COLS = ['contracts','clients','payments','tasks','visits','team','brands','projects','brand_sales','visit_plans','recipes'];
+async function scanLocalBackupForLost(manual) {
+  if(!db_firestore || !currentUser) return;
+  try { if(!manual && localStorage.getItem(RECOVERY_FLAG)) return; } catch(e) { return; }
+  let backup = null;
+  try { backup = JSON.parse(localStorage.getItem('nassaq_crm_backup') || 'null'); } catch(e) {}
+  if(!backup) { try { localStorage.setItem(RECOVERY_FLAG, new Date().toISOString()); } catch(e) {} if(manual) showToast('ℹ️ لا توجد نسخة محلية على هذا الجهاز'); return; }
+  const found = [];
+  for(const col of RECOVER_COLS) {
+    const local = Array.isArray(backup[col]) ? backup[col] : [];
+    const cloudIds = new Set((DB[col] || []).map(x => x.id));
+    for(const rec of local) {
+      if(!rec || !rec.id || cloudIds.has(rec.id) || found.length >= 200) continue;
+      try {
+        // تحقق من الخادم مباشرة (لا من الكاش) أن السجل غير موجود فعلاً
+        const snap = await db_firestore.collection(col).doc(rec.id).get({ source: 'server' });
+        if(snap.exists) continue;
+        const inTrash = canDo('delete') ? await db_firestore.collection('trash').doc(col + '__' + rec.id).get().then(t => t.exists).catch(() => false) : false;
+        if(inTrash) continue;
+        found.push({ col, rec });
+      } catch(e) { if(manual) console.warn('verify', col, rec.id, e && e.code); }
+    }
+  }
+  let sent = 0;
+  for(const f of found) {
+    try {
+      await db_firestore.collection('recovery_inbox').doc(f.col + '__' + f.rec.id).set({
+        id: f.col + '__' + f.rec.id, collection: f.col, docId: f.rec.id, data: f.rec,
+        foundAt: new Date().toISOString(),
+        foundBy: currentUser.name || currentUser.email || '', foundByUid: currentUser.uid || ''
+      });
+      sent++;
+    } catch(e) { console.warn('recovery upload', e && e.code ? e.code : e); }
+  }
+  try { localStorage.setItem(RECOVERY_FLAG, new Date().toISOString()); } catch(e) {}
+  if(sent && canDo('delete')) showToast(`🛟 وُجد ${sent} سجل محذوف قديم في نسخة هذا الجهاز — راجعه في سلة المحذوفات`);
+  else if(manual) showToast(sent ? `🛟 تم العثور على ${sent} سجل` : '✅ لا توجد سجلات مفقودة في نسخة هذا الجهاز');
+  if(sent && currentPageName() === 'trash') renderTrash();
+}
+async function restoreRecoveryItem(id) {
+  if(!canDo('delete')) return;
+  const t = window._trashItems.find(x => x.id === id && x._inbox);
+  if(!t) return;
+  if(!confirm('استرجاع هذا السجل إلى المنصة؟')) return;
+  try {
+    const data = Object.assign({}, t.data || {}, { id: t.docId });
+    await db_firestore.collection(t.collection).doc(t.docId).set(data);
+    await db_firestore.collection('recovery_inbox').doc(id).delete();
+    logAudit('restore', t.collection, t.docId, data, null);
+    if(Array.isArray(DB[t.collection]) && !DB[t.collection].find(x => x.id === t.docId)) DB[t.collection].push(data);
+    showToast('♻️ تم استرجاع السجل');
+    renderTrash();
+  } catch(e) { showToast('⚠️ تعذّر الاسترجاع: ' + e.message); }
+}
+async function dismissRecoveryItem(id) {
+  if(!canDo('delete')) return;
+  if(!confirm('تجاهل هذا السجل وإزالته من قائمة الاسترجاع؟')) return;
+  try {
+    await db_firestore.collection('recovery_inbox').doc(id).delete();
+    window._trashItems = window._trashItems.filter(x => !(x.id === id && x._inbox));
+    renderTrash(true);
+  } catch(e) { showToast('⚠️ ' + e.message); }
+}
+
 async function renderTrash(fromFilter) {
   const tbody = document.getElementById('trash-table');
   if(!tbody) return;
@@ -12082,7 +12157,12 @@ async function renderTrash(fromFilter) {
     if(!db_firestore) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;">غير متصل بالسحابة</td></tr>'; return; }
     try {
       const snap = await db_firestore.collection('trash').get();
-      window._trashItems = snap.docs.map(d => d.data()).sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+      let inbox = [];
+      try {
+        const ib = await db_firestore.collection('recovery_inbox').get();
+        inbox = ib.docs.map(d => Object.assign(d.data(), { _inbox: true, deletedAt: '', deletedBy: '📥 نسخة جهاز: ' + (d.data().foundBy || '') }));
+      } catch(e) { console.warn('recovery inbox', e && e.code); }
+      window._trashItems = inbox.concat(snap.docs.map(d => d.data()).sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || '')));
     } catch(e) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--danger);">خطأ: ' + esc(e.message) + '</td></tr>';
       return;
@@ -12104,11 +12184,13 @@ async function renderTrash(fromFilter) {
   tbody.innerHTML = list.map(t => `<tr>
     <td><span class="badge badge-pending">${esc(TRASH_LABELS[t.collection] || t.collection)}</span></td>
     <td style="font-weight:600;">${esc(trashItemTitle(t))}</td>
-    <td style="font-size:12px;white-space:nowrap;">${t.deletedAt ? formatDate(t.deletedAt) + ' ' + new Date(t.deletedAt).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
+    <td style="font-size:12px;white-space:nowrap;">${t._inbox ? '<span style="color:#dd6b20;font-weight:700;">حُذف قبل نظام السلة</span>' : t.deletedAt ? formatDate(t.deletedAt) + ' ' + new Date(t.deletedAt).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
     <td style="font-size:12px;">${esc(t.deletedBy || '—')}</td>
-    <td><div style="display:flex;gap:6px;">
+    <td><div style="display:flex;gap:6px;">${t._inbox ? `
+      <button class="btn btn-success btn-sm" data-id="${esc(t.id)}" onclick="restoreRecoveryItem(this.dataset.id)">♻️ استرجاع</button>
+      <button class="btn btn-outline btn-sm" data-id="${esc(t.id)}" onclick="dismissRecoveryItem(this.dataset.id)">تجاهل</button>` : `
       <button class="btn btn-success btn-sm" data-id="${esc(t.id)}" onclick="restoreFromTrash(this.dataset.id)">♻️ استرجاع</button>
-      <button class="btn btn-danger btn-sm" data-id="${esc(t.id)}" onclick="purgeTrashItem(this.dataset.id)">حذف نهائي</button>
+      <button class="btn btn-danger btn-sm" data-id="${esc(t.id)}" onclick="purgeTrashItem(this.dataset.id)">حذف نهائي</button>`}
     </div></td>
   </tr>`).join('');
 }

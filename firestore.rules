@@ -45,11 +45,17 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // ── صندوق الاسترجاع: سجلات محذوفة قديماً وُجدت في النسخ المحلية للأجهزة ──
+    match /recovery_inbox/{id} {
+      allow create, update: if canWrite() && request.resource.data.foundByUid == request.auth.uid;
+      allow read, delete: if isAdmin();
+    }
+
     // ── كل بيانات المنصة الأخرى ──
     match /{col}/{id} {
-      allow read: if canRead() && !(col in ['app_users', 'trash', 'audit_log']);
-      allow create, update: if canWrite() && !(col in ['app_users', 'trash', 'audit_log']);
-      allow delete: if isAdmin() && !(col in ['app_users', 'trash', 'audit_log']);
+      allow read: if canRead() && !(col in ['app_users', 'trash', 'audit_log', 'recovery_inbox']);
+      allow create, update: if canWrite() && !(col in ['app_users', 'trash', 'audit_log', 'recovery_inbox']);
+      allow delete: if isAdmin() && !(col in ['app_users', 'trash', 'audit_log', 'recovery_inbox']);
     }
   }
 }
