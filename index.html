@@ -12930,6 +12930,15 @@ function printVisitBilling() {
   const totalAmount = personRows.reduce((sum, r) => sum + r.amount, 0);
   const skippedTotal = personRows.reduce((s,r) => s + r.skipped, 0);
 
+  // 📋 تفصيل كل زيارات الشهر (مجموع مبالغها = إجمالي الكشف، مع تجاهل المشرفين المستبعدين)
+  const detailRows = [...filtered].sort((a,b) => new Date(a.date) - new Date(b.date)).map(v => {
+    const pids = visitPersonIds(v);
+    const counted = pids.filter(id => !window._vbExcluded.has(id));
+    const amount = counted.reduce((sum, id) => sum + visitAmount(v, getRateFor(id)), 0);
+    return { v, pids, counted, amount };
+  });
+  const detailTotal = detailRows.reduce((s, r) => s + r.amount, 0);
+
   const win = window.open('','_blank');
   win.document.write(`
     <html dir="rtl"><head><meta charset="UTF-8">
@@ -12942,6 +12951,9 @@ function printVisitBilling() {
       th{background:#2d5a4a;color:white;padding:10px 14px;text-align:right;}
       td{padding:10px 14px;border-bottom:1px solid #eee;}
       .total-row{background:#f5efe6;font-weight:700;}
+      .detail th,.detail td{padding:6px 8px;font-size:12px;}
+      .detail tr{page-break-inside:avoid;}
+      .muted{color:#888;}
       .footer{margin-top:50px;display:flex;justify-content:space-around;gap:30px;}
       .sign-box{border-top:1px solid #999;padding-top:8px;width:200px;text-align:center;font-size:13px;}
     </style></head><body>
@@ -12964,6 +12976,23 @@ function printVisitBilling() {
       </tbody>
     </table>
     <p style="font-size:12px;color:#666;">ملاحظة: الزيارة التي يشارك فيها أكثر من مشرف تُحتسب لكل مشرف مشارك، والزيارات الاستكشافية / التجريبية / بدون مقابل لا تُحتسب إلا إذا فُعّل احتسابها، ويُستخدم المبلغ المخصص للزيارة إن وُجد.${skippedTotal ? ` (عدد الزيارات غير المحتسبة: ${skippedTotal})` : ''}</p>
+    <h3 style="margin-top:28px;">تفصيل الزيارات — ${monthNames[month]} ${year}</h3>
+    <table class="detail">
+      <thead><tr><th>#</th><th>التاريخ</th><th>المشرف</th><th>البراند</th><th>الغرض</th><th>نوع الزيارة</th><th>المبلغ (ر.س)</th><th>تُحتسب</th><th>ملاحظات</th></tr></thead>
+      <tbody>
+        ${detailRows.map((r, i) => `
+          <tr class="${visitBillable(r.v) && r.counted.length ? '' : 'muted'}">
+            <td>${i+1}</td><td>${formatDate(r.v.date)}</td>
+            <td>${esc(r.pids.map(id => getMember(id).name).join('، '))}${r.pids.length > r.counted.length ? ' <span style="font-size:10px;">(مستبعد)</span>' : ''}</td>
+            <td>${esc(visitBrandName(r.v))}</td><td>${esc(r.v.purpose || '—')}</td>
+            <td>${VISIT_TYPES[visitTypeKey(r.v)].label}</td>
+            <td style="font-weight:700;">${r.amount.toLocaleString('ar-SA')}</td>
+            <td>${visitBillable(r.v) ? 'نعم' : 'لا'}</td>
+            <td>${esc(r.v.notes || '')}</td>
+          </tr>`).join('')}
+        <tr class="total-row"><td colspan="6">الإجمالي</td><td colspan="3" style="font-size:14px;">${detailTotal.toLocaleString('ar-SA')} ر.س</td></tr>
+      </tbody>
+    </table>
     <div class="footer">
       <div class="sign-box">إعداد<br><strong>حاتم عطية</strong><br><span style="font-size:11px;color:#666;">مدير العمليات والشؤون المالية</span></div>
       <div class="sign-box">اعتماد<br><strong>أحمد القحطاني</strong><br><span style="font-size:11px;color:#666;">المدير العام</span></div>
