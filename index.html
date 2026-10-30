@@ -806,6 +806,17 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
   .co-sup-box label.on { background:rgba(45,90,74,.12); border-color:#2d5a4a; color:#2d5a4a; font-weight:700; }
   .co-sup-box input { accent-color:#2d5a4a; cursor:pointer; }
   .badge-explore { background:rgba(201,168,92,.2); color:#8b6f2f; border:1px solid rgba(201,168,92,.6); padding:2px 8px; border-radius:10px; font-size:10.5px; font-weight:700; white-space:nowrap; }
+  /* 💰 نوع الزيارة ومبلغها */
+  .vbill-box { background:rgba(45,90,74,.05); border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+  .vbill-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center; }
+  .vbill-grid .vbill-check { grid-column:1 / -1; display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; }
+  .vbill-hint { font-size:11px; color:var(--text-muted); margin-top:6px; }
+  .vtype-badge { padding:2px 8px; border-radius:10px; font-size:10.5px; font-weight:700; white-space:nowrap; background:rgba(45,90,74,.12); color:#2d5a4a; }
+  .vtype-badge.trial { background:rgba(99,102,241,.14); color:#4338ca; }
+  .vtype-badge.exploratory { background:rgba(201,168,92,.2); color:#8b6f2f; }
+  .vtype-badge.free { background:rgba(113,128,150,.15); color:#4a5568; }
+  .vb-inline { padding:4px 6px; font-size:12px; border:1px solid var(--border); border-radius:6px; background:var(--surface, #fff); }
+  .vb-inline.fee { width:80px; }
   .badge-archived { background:rgba(113,128,150,.15); color:#4a5568; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:700; }
   /* 🔒 الحذف للأدمن فقط: إخفاء أزرار الحذف لباقي الأدوار */
   body.nsq-no-delete [onclick*="delete" i],
@@ -3044,9 +3055,9 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
         <div class="card-header"><span class="card-title" id="vb-detail-title">تفصيل جميع الزيارات</span></div>
         <div class="card-body" style="padding:0;">
           <table>
-            <thead><tr><th>المشرف</th><th>البراند</th><th>التاريخ</th><th>الغرض</th></tr></thead>
+            <thead><tr><th>المشرف</th><th>البراند</th><th>التاريخ</th><th>الغرض</th><th>نوع الزيارة</th><th>المبلغ (ر.س)</th><th style="text-align:center;">تُحتسب</th></tr></thead>
             <tbody id="vb-detail-tbody">
-              <tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-muted);">لا توجد بيانات</td></tr>
+              <tr><td colspan="7"style="text-align:center;padding:32px;color:var(--text-muted);">لا توجد بيانات</td></tr>
             </tbody>
           </table>
         </div>
@@ -4202,7 +4213,7 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
     <div class="modal-body">
       <div class="explore-toggle">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
-          <input type="checkbox" id="v-exploratory" onchange="toggleExploratoryVisit('v')" style="width:18px;height:18px;accent-color:#c9a85c;cursor:pointer;">
+          <input type="checkbox" id="v-exploratory" onchange="toggleExploratoryVisit('v');onExploratoryBrandToggle('v')" style="width:18px;height:18px;accent-color:#c9a85c;cursor:pointer;">
           🔍 زيارة استكشافية — براند غير مسجّل بعد في المنصة
         </label>
         <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">تُحتسب الزيارة لكل المشرفين المشاركين فيها، ويمكن لاحقاً تحويل البراند إلى براند مسجّل.</div>
@@ -4237,6 +4248,15 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
         <div class="form-group full">
           <label>👥 مشرفون مشاركون في نفس الزيارة <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(تُحتسب الزيارة لكل مشرف محدد)</span></label>
           <div id="v-co-box" class="co-sup-box"></div>
+        </div>
+        <div class="form-group full vbill-box">
+          <label>💰 نوع الزيارة وأجرها</label>
+          <div class="vbill-grid">
+            <select id="v-vtype" onchange="onVisitTypeChange('v')"></select>
+            <input type="number" id="v-fee" min="0" step="5" placeholder="المبلغ (فارغ = سعر المشرف)" oninput="onVisitFeeInput('v')">
+            <label class="vbill-check"><input type="checkbox" id="v-billable" checked style="accent-color:#2d5a4a;"> تُحتسب في أجر المشرف (حساب الزيارات)</label>
+          </div>
+          <div class="vbill-hint">الزيارات الاستكشافية / التجريبية / بدون مقابل لا تُحتسب افتراضياً، ويمكنك تفعيل الاحتساب وكتابة مبلغها يدوياً.</div>
         </div>
         <div class="form-group full"><label>ملاحظات الزيارة</label><textarea id="v-notes" placeholder="ما تم ملاحظته أو إنجازه خلال الزيارة..."></textarea></div>
         <div class="form-group full">
@@ -4530,7 +4550,7 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
       <input type="hidden" id="ev-id">
       <div class="explore-toggle">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
-          <input type="checkbox" id="ev-exploratory" onchange="toggleExploratoryVisit('ev')" style="width:18px;height:18px;accent-color:#c9a85c;cursor:pointer;">
+          <input type="checkbox" id="ev-exploratory" onchange="toggleExploratoryVisit('ev');onExploratoryBrandToggle('ev')" style="width:18px;height:18px;accent-color:#c9a85c;cursor:pointer;">
           🔍 زيارة استكشافية — براند غير مسجّل
         </label>
       </div>
@@ -4563,6 +4583,14 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
         <div class="form-group full">
           <label>👥 مشرفون مشاركون <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(تُحتسب الزيارة لكل مشرف محدد)</span></label>
           <div id="ev-co-box" class="co-sup-box"></div>
+        </div>
+        <div class="form-group full vbill-box">
+          <label>💰 نوع الزيارة وأجرها</label>
+          <div class="vbill-grid">
+            <select id="ev-vtype" onchange="onVisitTypeChange('ev')"></select>
+            <input type="number" id="ev-fee" min="0" step="5" placeholder="المبلغ (فارغ = سعر المشرف)" oninput="onVisitFeeInput('ev')">
+            <label class="vbill-check"><input type="checkbox" id="ev-billable" checked style="accent-color:#2d5a4a;"> تُحتسب في أجر المشرف (حساب الزيارات)</label>
+          </div>
         </div>
         <div class="form-group full"><label>ملاحظات الزيارة</label><textarea id="ev-notes" placeholder="ما تم ملاحظته أو إنجازه..."></textarea></div>
         <div class="form-group full">
@@ -5416,6 +5444,7 @@ function openModal(type) {
     }
     toggleExploratoryVisit('v');
     renderCoSupervisorBox('v', []);
+    fillVisitBillFields('v', null);
   }
   // عند فتح modal إضافة مستخدم: تعبئة قائمة الفريق للربط
   if(type === 'add-user') {
@@ -5958,6 +5987,7 @@ function saveVisit() {
   const obj = {
     id: visitId, clientId: core.clientId, projectId, personId: core.personId, personIds: core.personIds,
     exploratory: core.exploratory, prospectName: core.prospectName, prospectContact: core.prospectContact,
+    visitType: core.visitType, fee: core.fee, billable: core.billable,
     createdBy: currentUser ? (currentUser.uid || '') : '',
     date: document.getElementById('v-date').value,
     purpose: document.getElementById('v-purpose').value,
@@ -10081,6 +10111,64 @@ function visitBrandLabelHTML(v) {
   return esc(visitBrandName(v)) + (v && v.exploratory ? ' <span class="badge-explore" title="زيارة استكشافية لبراند غير مسجّل">🔍 استكشافية</span>' : '');
 }
 
+// ═══════════════════════════════════════════════
+// 💰 نوع الزيارة + مبلغها + هل تُحتسب في أجر المشرف
+// • visitType: paid | exploratory | trial | free  (القديمة بلا visitType: استكشافية إن كان exploratory وإلا بمقابل)
+// • billable:  false = لا تُحتسب. السجلات القديمة (بلا billable) تبقى محتسبة كما كانت
+// • fee:       مبلغ مخصص لهذه الزيارة؛ فارغ = سعر المشرف (المخصص أو الافتراضي)
+// ═══════════════════════════════════════════════
+const VISIT_TYPES = {
+  paid:        { label: 'بمقابل',       icon: '💰', billable: true  },
+  exploratory: { label: 'استكشافية',    icon: '🔍', billable: false },
+  trial:       { label: 'تجريبية',      icon: '🧪', billable: false },
+  free:        { label: 'بدون مقابل',   icon: '🆓', billable: false }
+};
+function visitTypeKey(v) { return (v && VISIT_TYPES[v.visitType]) ? v.visitType : (v && v.exploratory ? 'exploratory' : 'paid'); }
+function visitBillable(v) { return !(v && v.billable === false); }
+function visitCustomFee(v) {
+  if(!v || v.fee === null || v.fee === undefined || v.fee === '') return null;
+  const n = parseFloat(v.fee);
+  return (isNaN(n) || n < 0) ? null : n;
+}
+// المبلغ المستحق للمشرف عن هذه الزيارة
+function visitAmount(v, rate) {
+  if(!visitBillable(v)) return 0;
+  const f = visitCustomFee(v);
+  return f !== null ? f : rate;
+}
+function visitTypeBadgeHTML(v) {
+  const k = visitTypeKey(v);
+  return `<span class="vtype-badge ${k}">${VISIT_TYPES[k].icon} ${VISIT_TYPES[k].label}</span>`;
+}
+function visitTypeOptionsHTML(selected) {
+  return Object.entries(VISIT_TYPES).map(([k, t]) => `<option value="${k}" ${k === selected ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('');
+}
+// تعبئة حقول النوع/المبلغ/الاحتساب في نموذج الزيارة (v = null → قيم جديدة)
+function fillVisitBillFields(prefix, v) {
+  const sel = document.getElementById(prefix + '-vtype'); if(!sel) return;
+  const key = v ? visitTypeKey(v) : 'paid';
+  sel.innerHTML = visitTypeOptionsHTML(key);
+  const fee = v ? visitCustomFee(v) : null;
+  document.getElementById(prefix + '-fee').value = fee === null ? '' : fee;
+  document.getElementById(prefix + '-billable').checked = v ? visitBillable(v) : VISIT_TYPES[key].billable;
+}
+function onVisitTypeChange(prefix) {
+  const t = VISIT_TYPES[document.getElementById(prefix + '-vtype').value];
+  if(t) document.getElementById(prefix + '-billable').checked = t.billable;
+}
+// كتابة مبلغ أكبر من صفر = تفعيل الاحتساب تلقائياً
+function onVisitFeeInput(prefix) {
+  const n = parseFloat(document.getElementById(prefix + '-fee').value);
+  if(n > 0) document.getElementById(prefix + '-billable').checked = true;
+}
+// تفعيل "براند غير مسجّل" يحوّل النوع إلى استكشافية (وإلغاؤه يعيده بمقابل) ما لم يغيّره المستخدم لنوع آخر
+function onExploratoryBrandToggle(prefix) {
+  const on = !!document.getElementById(prefix + '-exploratory').checked;
+  const sel = document.getElementById(prefix + '-vtype'); if(!sel) return;
+  if(on && sel.value === 'paid') { sel.value = 'exploratory'; onVisitTypeChange(prefix); }
+  else if(!on && sel.value === 'exploratory') { sel.value = 'paid'; onVisitTypeChange(prefix); }
+}
+
 // إظهار/إخفاء حقول الزيارة الاستكشافية (prefix = 'v' للإضافة أو 'ev' للتعديل)
 function toggleExploratoryVisit(prefix) {
   const on = !!(document.getElementById(prefix + '-exploratory') || {}).checked;
@@ -10134,7 +10222,12 @@ function readVisitFormCore(prefix) {
   if(!exploratory && !clientId) { alert('يرجى اختيار البراند المزار (أو فعّل "زيارة استكشافية" لبراند غير مسجّل)'); return null; }
   if(!personId) { alert('يرجى اختيار المشرف الرئيسي للزيارة'); return null; }
   const personIds = [personId, ...getCoSupervisorIds(prefix).filter(id => id !== personId)];
-  return { exploratory, clientId, prospectName, prospectContact, personId, personIds };
+  const visitType = (document.getElementById(prefix + '-vtype') || {}).value || 'paid';
+  const feeRaw = ((document.getElementById(prefix + '-fee') || {}).value || '').trim();
+  const fee = feeRaw === '' ? null : parseFloat(feeRaw);
+  if(fee !== null && (isNaN(fee) || fee < 0)) { alert('مبلغ الزيارة غير صحيح'); return null; }
+  const billable = !!(document.getElementById(prefix + '-billable') || { checked: true }).checked;
+  return { exploratory, clientId, prospectName, prospectContact, personId, personIds, visitType, fee, billable };
 }
 
 // ✅ تحويل براند الزيارة الاستكشافية إلى براند مسجّل وربط كل زياراته السابقة به
@@ -10720,10 +10813,10 @@ function exportVisitsCSV() {
   const f = getVisitFilters();
   const list = getFilteredVisits(f);
   if(!list.length) { showToast('⚠️ لا توجد زيارات مطابقة للتصدير'); return; }
-  const rows = [['#', 'التاريخ', 'اليوم', 'البراند / الفرع', 'نوع الزيارة', 'المشرفون', 'عدد المشرفين', 'الغرض', 'الملاحظات', 'مرفق PDF']];
+  const rows = [['#', 'التاريخ', 'اليوم', 'البراند / الفرع', 'نوع الزيارة', 'المشرفون', 'عدد المشرفين', 'الغرض', 'تُحتسب', 'المبلغ المخصص', 'الملاحظات', 'مرفق PDF']];
   list.forEach((v, i) => rows.push([
-    i + 1, v.date || '', weekdayAr(v.date), visitBrandName(v), v.exploratory ? 'استكشافية' : 'براند مسجّل', visitPersonsNames(v), visitPersonIds(v).length,
-    v.purpose || '', (v.notes || '').replace(/\r?\n/g, ' '), visitHasPDF(v) ? 'نعم' : 'لا'
+    i + 1, v.date || '', weekdayAr(v.date), visitBrandName(v), VISIT_TYPES[visitTypeKey(v)].label, visitPersonsNames(v), visitPersonIds(v).length,
+    v.purpose || '', visitBillable(v) ? 'نعم' : 'لا', visitCustomFee(v) === null ? '' : visitCustomFee(v), (v.notes || '').replace(/\r?\n/g, ' '), visitHasPDF(v) ? 'نعم' : 'لا'
   ]));
   // 🔐 منع حقن الصيغ في Excel (CSV injection): الخلايا التي تبدأ بـ = + - @ تُسبق بعلامة '
   const cell = c => { let t = String(c); if(/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
@@ -10806,6 +10899,7 @@ function openEditVisit(id) {
   if(!isExplore) document.getElementById('ev-person').value = v.personId;
   document.getElementById('ev-purpose').value = v.purpose || 'أخرى';
   renderCoSupervisorBox('ev', visitPersonIds(v).filter(pid => pid !== v.personId));
+  fillVisitBillFields('ev', v);
   document.getElementById('modal-edit-visit').classList.add('open');
 }
 
@@ -10822,6 +10916,7 @@ function saveEditVisit() {
   if(core.exploratory) { v.prospectName = core.prospectName; v.prospectContact = core.prospectContact; }
   v.personId = core.personId;
   v.personIds = core.personIds;
+  v.visitType = core.visitType; v.fee = core.fee; v.billable = core.billable;
   v.updatedAt = new Date().toISOString();
   v.date = document.getElementById('ev-date').value;
   v.purpose = document.getElementById('ev-purpose').value;
@@ -12118,7 +12213,7 @@ async function renderTrash(fromFilter) {
 const AUDIT_ACTIONS = { create:{t:'➕ إضافة',c:'#2f855a'}, update:{t:'✏️ تعديل',c:'#2b6cb0'}, delete:{t:'🗑️ حذف',c:'#c53030'}, restore:{t:'♻️ استرجاع',c:'#805ad5'} };
 const FIELD_LABELS = {
   name:'الاسم', clientId:'البراند/العميل', personId:'المشرف الرئيسي', personIds:'المشرفون', date:'التاريخ', purpose:'الغرض', notes:'الملاحظات',
-  exploratory:'زيارة استكشافية', prospectName:'اسم البراند غير المسجّل', prospectContact:'التواصل', projectId:'المشروع', pdf:'المرفق',
+  exploratory:'زيارة استكشافية', visitType:'نوع الزيارة', fee:'مبلغ الزيارة', billable:'تُحتسب في الأجر', prospectName:'اسم البراند غير المسجّل', prospectContact:'التواصل', projectId:'المشروع', pdf:'المرفق',
   status:'الحالة', amount:'المبلغ', totalValue:'قيمة العقد', startDate:'تاريخ البداية', endDate:'تاريخ النهاية', phone:'الجوال', email:'البريد',
   role:'المسمى', visitRate:'سعر الزيارة', supervisorId:'المشرف المسؤول', supervisorIds:'المشرفون', phases:'المراحل', budget:'الميزانية',
   priority:'الأولوية', description:'الوصف', archived:'الأرشفة', tasks:'المهام', text:'نص المهمة', assignedTo:'المكلّف', done:'منجزة',
@@ -12632,38 +12727,46 @@ function renderVisitBilling() {
   // احتساب حسب المشرف
   const byPerson = {};
   // 👥 الزيارة المشتركة تُحتسب كاملة لكل مشرف مشارك فيها (ومنها الزيارات الاستكشافية)
+  // 💰 count/amount = الزيارات المحتسبة فقط؛ skipped = غير المحتسبة (استكشافية/تجريبية/بدون مقابل...)
   filtered.forEach(v => {
     const bn = visitBrandName(v) + (v.exploratory ? ' 🔍' : '');
     visitPersonIds(v).forEach(pid => {
       const m = getMember(pid);
-      if(!byPerson[pid]) byPerson[pid] = { 
-        id: pid, name: m.name, count: 0, exploreCount: 0, sharedCount: 0, brands: new Set(), visits: [],
+      if(!byPerson[pid]) byPerson[pid] = {
+        id: pid, name: m.name, count: 0, skipped: 0, amount: 0, mixedFees: false, exploreCount: 0, sharedCount: 0, brands: new Set(), visits: [],
         rate: getRateFor(pid), custom: isCustomRate(pid)
       };
-      byPerson[pid].count++;
-      if(v.exploratory) byPerson[pid].exploreCount++;
-      if(visitPersonIds(v).length > 1) byPerson[pid].sharedCount++;
-      byPerson[pid].brands.add(bn);
-      byPerson[pid].visits.push(v);
+      const p = byPerson[pid];
+      if(visitBillable(v)) {
+        p.count++;
+        p.amount += visitAmount(v, p.rate);
+        if(visitCustomFee(v) !== null && visitCustomFee(v) !== p.rate) p.mixedFees = true;
+      } else {
+        p.skipped++;
+      }
+      if(v.exploratory) p.exploreCount++;
+      if(visitPersonIds(v).length > 1) p.sharedCount++;
+      p.brands.add(bn);
+      p.visits.push(v);
     });
   });
 
-  const rows = Object.values(byPerson).sort((a,b) => b.count - a.count);
-  const totalVisits = filtered.length;
+  const rows = Object.values(byPerson).sort((a,b) => (b.count + b.skipped) - (a.count + a.skipped));
   // ── حالة الاستبعاد محفوظة في localStorage لتبقى بعد إعادة التحميل ──
   if(!window._vbExcluded) {
     try { window._vbExcluded = new Set(JSON.parse(localStorage.getItem('nassaq_vb_excluded') || '[]')); }
     catch(e) { window._vbExcluded = new Set(); }
   }
   // الإجمالي = مجموع (عدد زيارات كل مشرف × سعره الخاص) مع تجاهل المستبعدين
-  const totalAmount = rows.reduce((sum, r) => sum + (window._vbExcluded.has(r.id) ? 0 : r.count * r.rate), 0);
+  const totalAmount = rows.reduce((sum, r) => sum + (window._vbExcluded.has(r.id) ? 0 : r.amount), 0);
   const includedRows = rows.filter(r => !window._vbExcluded.has(r.id));
   const includedVisits = includedRows.reduce((s,r) => s + r.count, 0);
+  const skippedVisits = filtered.filter(v => !visitBillable(v)).length;
 
   // ملخص
   const summary = document.getElementById('vb-summary');
   if(summary) summary.innerHTML = `
-    <div class="stat-card"><div class="stat-label">إجمالي الزيارات</div><div class="stat-value">${includedVisits}</div><div class="stat-sub">${window._vbExcluded.size > 0 ? `بعد استبعاد ${window._vbExcluded.size}` : monthLabel}</div></div>
+    <div class="stat-card"><div class="stat-label">إجمالي الزيارات</div><div class="stat-value">${includedVisits}</div><div class="stat-sub">${window._vbExcluded.size > 0 ? `بعد استبعاد ${window._vbExcluded.size}` : monthLabel}${skippedVisits ? ` · ${skippedVisits} غير محتسبة` : ''}</div></div>
     <div class="stat-card"><div class="stat-label">السعر الافتراضي</div><div class="stat-value">${defaultRate.toLocaleString('ar-SA')}</div><div class="stat-sub">ر.س / زيارة</div></div>
     <div class="stat-card"><div class="stat-label">إجمالي المستحق</div><div class="stat-value amount-big" style="font-size:22px;">${totalAmount.toLocaleString('ar-SA')}</div><div class="stat-sub">ريال سعودي</div></div>
     <div class="stat-card"><div class="stat-label">عدد المشرفين</div><div class="stat-value">${includedRows.length}<span style="font-size:14px;color:var(--text-muted);"> / ${rows.length}</span></div><div class="stat-sub">${window._vbExcluded.size > 0 ? 'محتسبون / كلهم' : 'مشرف نشط'}</div></div>
@@ -12702,9 +12805,9 @@ function renderVisitBilling() {
           ${avatarHTML}
           <span style="font-weight:600;${isExcluded ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(r.name)}</span>
         </div></td>
-        <td><span style="font-size:18px;font-weight:700;color:var(--dark-green);">${r.count}</span> زيارة${(r.exploreCount || r.sharedCount) ? `<div style="font-size:10.5px;color:var(--text-muted);">${r.exploreCount ? '🔍 ' + r.exploreCount + ' استكشافية' : ''}${r.exploreCount && r.sharedCount ? ' · ' : ''}${r.sharedCount ? '👥 ' + r.sharedCount + ' مشتركة' : ''}</div>` : ''}</td>
-        <td>${r.rate.toLocaleString('ar-SA')} ر.س ${rateBadge}</td>
-        <td><span class="amount-big" style="font-size:16px;${isExcluded ? 'text-decoration:line-through;color:#999;' : ''}">${(r.count * r.rate).toLocaleString('ar-SA')} ر.س</span></td>
+        <td><span style="font-size:18px;font-weight:700;color:var(--dark-green);">${r.count}</span> زيارة محتسبة${(r.skipped || r.exploreCount || r.sharedCount) ? `<div style="font-size:10.5px;color:var(--text-muted);">${[r.skipped ? '⏸️ ' + r.skipped + ' غير محتسبة' : '', r.exploreCount ? '🔍 ' + r.exploreCount + ' استكشافية' : '', r.sharedCount ? '👥 ' + r.sharedCount + ' مشتركة' : ''].filter(Boolean).join(' · ')}</div>` : ''}</td>
+        <td>${r.mixedFees ? '<span title="بعض الزيارات لها مبلغ مخصص">متفاوتة</span>' : r.rate.toLocaleString('ar-SA') + ' ر.س'} ${rateBadge}</td>
+        <td><span class="amount-big" style="font-size:16px;${isExcluded ? 'text-decoration:line-through;color:#999;' : ''}">${r.amount.toLocaleString('ar-SA')} ر.س</span></td>
         <td style="font-size:12px;color:var(--text-muted);">${esc([...r.brands].join(' · '))}</td>
       </tr>
     `;
@@ -12715,7 +12818,7 @@ function renderVisitBilling() {
         <td></td>
         <td style="font-weight:700;">الإجمالي ${window._vbExcluded.size > 0 ? `<span style="font-size:11px;color:#dc2626;font-weight:600;">(باستبعاد ${window._vbExcluded.size})</span>` : ''}</td>
         <td style="font-size:18px;font-weight:700;color:var(--dark-green);">${includedVisits} زيارة</td>
-        <td style="color:var(--text-muted);font-size:12px;">حسب سعر كل مشرف</td>
+        <td style="color:var(--text-muted);font-size:12px;">حسب نوع ومبلغ كل زيارة</td>
         <td><span class="amount-big" style="font-size:18px;">${totalAmount.toLocaleString('ar-SA')} ر.س</span></td>
         <td></td>
       </tr>
@@ -12726,21 +12829,57 @@ function renderVisitBilling() {
   const detailTbody = document.getElementById('vb-detail-tbody');
   if(!detailTbody) return;
   if(filtered.length === 0) {
-    detailTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد زيارات</td></tr>';
+    detailTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد زيارات</td></tr>';
   } else {
     const sortedV = [...filtered].sort((a,b) => new Date(a.date)-new Date(b.date));
+    const canEditV = canDo('edit');
     detailTbody.innerHTML = sortedV.map(v => {
       const pids = visitPersonIds(v);
-      return `<tr>
+      const billable = visitBillable(v);
+      const fee = visitCustomFee(v);
+      const vid = esc(v.id);
+      const typeCell = canEditV
+        ? `<select class="vb-inline" onchange="vbUpdateVisit('${vid}','type',this.value)">${visitTypeOptionsHTML(visitTypeKey(v))}</select>`
+        : visitTypeBadgeHTML(v);
+      const feeCell = canEditV
+        ? `<input type="number" class="vb-inline fee" min="0" step="5" value="${fee === null ? '' : fee}" placeholder="${getRateFor(v.personId || pids[0])}" title="فارغ = سعر المشرف" onchange="vbUpdateVisit('${vid}','fee',this.value)">`
+        : (fee === null ? 'سعر المشرف' : fee.toLocaleString('ar-SA') + ' ر.س');
+      const billCell = canEditV
+        ? `<input type="checkbox" ${billable ? 'checked' : ''} onchange="vbUpdateVisit('${vid}','billable',this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#2d5a4a;" title="${billable ? 'استبعاد هذه الزيارة من الأجر' : 'احتساب هذه الزيارة'}">`
+        : (billable ? '✅' : '⏸️');
+      return `<tr style="${billable ? '' : 'opacity:0.6;'}">
         <td>${pids.map(pid => { const m = getMember(pid); return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
           <div class="avatar" style="width:26px;height:26px;font-size:10px;">${esc(initials(m.name))}</div>${esc(m.name)}
         </div>`; }).join('')}${pids.length > 1 ? '<div style="font-size:10.5px;color:#2d5a4a;font-weight:700;">👥 تُحتسب لكل مشرف</div>' : ''}</td>
         <td style="font-weight:600;">${visitBrandLabelHTML(v)}</td>
         <td>${formatDate(v.date)}</td>
         <td><span class="badge badge-pending">${esc(v.purpose || '—')}</span></td>
+        <td>${typeCell}</td>
+        <td>${feeCell}</td>
+        <td style="text-align:center;">${billCell}</td>
       </tr>`;
     }).join('');
   }
+}
+
+// ✏️ تعديل نوع/مبلغ/احتساب زيارة مباشرة من صفحة حساب الزيارات
+function vbUpdateVisit(id, field, val) {
+  if(!canDo('edit')) { showToast('🚫 ليس لديك صلاحية التعديل'); renderVisitBilling(); return; }
+  const v = DB.visits.find(x => x.id === id);
+  if(!v) return;
+  if(field === 'type' && VISIT_TYPES[val]) {
+    v.visitType = val;
+    v.billable = VISIT_TYPES[val].billable;
+  } else if(field === 'fee') {
+    const n = parseFloat(val);
+    v.fee = (val === '' || isNaN(n) || n < 0) ? null : n;
+    if(v.fee > 0) v.billable = true;
+  } else if(field === 'billable') {
+    v.billable = !!val;
+  } else return;
+  v.updatedAt = new Date().toISOString();
+  saveDoc('visits', v);
+  renderVisitBilling();
 }
 
 function printVisitBilling() {
@@ -12770,14 +12909,20 @@ function printVisitBilling() {
   filtered.forEach(v => {
     visitPersonIds(v).forEach(pid => {
       const m = getMember(pid);
-      if(!byPerson[pid]) byPerson[pid] = { id: pid, name: m.name, count: 0, rate: getRateFor(pid) };
-      byPerson[pid].count++;
+      if(!byPerson[pid]) byPerson[pid] = { id: pid, name: m.name, count: 0, skipped: 0, amount: 0, mixed: false, rate: getRateFor(pid) };
+      const p = byPerson[pid];
+      if(visitBillable(v)) {
+        p.count++;
+        p.amount += visitAmount(v, p.rate);
+        if(visitCustomFee(v) !== null && visitCustomFee(v) !== p.rate) p.mixed = true;
+      } else p.skipped++;
     });
   });
   // فلترة المستبعدين
   const personRows = Object.values(byPerson).filter(r => !window._vbExcluded.has(r.id));
   const totalVisits = personRows.reduce((s,r) => s + r.count, 0);
-  const totalAmount = personRows.reduce((sum, r) => sum + (r.count * r.rate), 0);
+  const totalAmount = personRows.reduce((sum, r) => sum + r.amount, 0);
+  const skippedTotal = personRows.reduce((s,r) => s + r.skipped, 0);
 
   const win = window.open('','_blank');
   win.document.write(`
@@ -12800,9 +12945,9 @@ function printVisitBilling() {
       <thead><tr><th>#</th><th>اسم المشرف</th><th>عدد الزيارات</th><th>قيمة الزيارة (ر.س)</th><th>الإجمالي (ر.س)</th></tr></thead>
       <tbody>
         ${personRows.map((r,i) => `
-          <tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.count}</td>
-          <td>${r.rate.toLocaleString('ar-SA')}</td>
-          <td style="font-weight:700;">${(r.count*r.rate).toLocaleString('ar-SA')}</td></tr>
+          <tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${r.count}${r.skipped ? ` <span style="font-size:11px;color:#888;">(+${r.skipped} غير محتسبة)</span>` : ''}</td>
+          <td>${r.mixed ? 'متفاوتة' : r.rate.toLocaleString('ar-SA')}</td>
+          <td style="font-weight:700;">${r.amount.toLocaleString('ar-SA')}</td></tr>
         `).join('')}
         <tr class="total-row">
           <td colspan="2">الإجمالي</td>
@@ -12812,7 +12957,7 @@ function printVisitBilling() {
         </tr>
       </tbody>
     </table>
-    <p style="font-size:12px;color:#666;">ملاحظة: الزيارة التي يشارك فيها أكثر من مشرف تُحتسب لكل مشرف مشارك، والزيارات الاستكشافية (براندات غير مسجّلة) محتسبة ضمن العدد.</p>
+    <p style="font-size:12px;color:#666;">ملاحظة: الزيارة التي يشارك فيها أكثر من مشرف تُحتسب لكل مشرف مشارك، والزيارات الاستكشافية / التجريبية / بدون مقابل لا تُحتسب إلا إذا فُعّل احتسابها، ويُستخدم المبلغ المخصص للزيارة إن وُجد.${skippedTotal ? ` (عدد الزيارات غير المحتسبة: ${skippedTotal})` : ''}</p>
     <div class="footer">
       <div class="sign-box">إعداد<br><strong>حاتم عطية</strong><br><span style="font-size:11px;color:#666;">مدير العمليات والشؤون المالية</span></div>
       <div class="sign-box">اعتماد<br><strong>أحمد القحطاني</strong><br><span style="font-size:11px;color:#666;">المدير العام</span></div>
