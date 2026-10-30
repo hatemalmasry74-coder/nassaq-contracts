@@ -3055,9 +3055,9 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
         <div class="card-header"><span class="card-title" id="vb-detail-title">تفصيل جميع الزيارات</span></div>
         <div class="card-body" style="padding:0;">
           <table>
-            <thead><tr><th>المشرف</th><th>البراند</th><th>التاريخ</th><th>الغرض</th><th>نوع الزيارة</th><th>المبلغ (ر.س)</th><th style="text-align:center;">تُحتسب</th></tr></thead>
+            <thead><tr><th>المشرف</th><th>البراند</th><th>التاريخ</th><th>الغرض</th><th>نوع الزيارة</th><th>المبلغ (ر.س)</th><th style="text-align:center;">تُحتسب</th><th>ملاحظات</th></tr></thead>
             <tbody id="vb-detail-tbody">
-              <tr><td colspan="7"style="text-align:center;padding:32px;color:var(--text-muted);">لا توجد بيانات</td></tr>
+              <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">لا توجد بيانات</td></tr>
             </tbody>
           </table>
         </div>
@@ -12829,7 +12829,7 @@ function renderVisitBilling() {
   const detailTbody = document.getElementById('vb-detail-tbody');
   if(!detailTbody) return;
   if(filtered.length === 0) {
-    detailTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد زيارات</td></tr>';
+    detailTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد زيارات</td></tr>';
   } else {
     const sortedV = [...filtered].sort((a,b) => new Date(a.date)-new Date(b.date));
     const canEditV = canDo('edit');
@@ -12847,6 +12847,9 @@ function renderVisitBilling() {
       const billCell = canEditV
         ? `<input type="checkbox" ${billable ? 'checked' : ''} onchange="vbUpdateVisit('${vid}','billable',this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#2d5a4a;" title="${billable ? 'استبعاد هذه الزيارة من الأجر' : 'احتساب هذه الزيارة'}">`
         : (billable ? '✅' : '⏸️');
+      const noteCell = canEditV
+        ? `<input type="text" class="vb-inline" style="width:160px;" value="${esc(v.notes || '')}" placeholder="ملاحظة..." onchange="vbUpdateVisit('${vid}','notes',this.value)">`
+        : esc(v.notes || '—');
       return `<tr style="${billable ? '' : 'opacity:0.6;'}">
         <td>${pids.map(pid => { const m = getMember(pid); return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
           <div class="avatar" style="width:26px;height:26px;font-size:10px;">${esc(initials(m.name))}</div>${esc(m.name)}
@@ -12857,6 +12860,7 @@ function renderVisitBilling() {
         <td>${typeCell}</td>
         <td>${feeCell}</td>
         <td style="text-align:center;">${billCell}</td>
+        <td>${noteCell}</td>
       </tr>`;
     }).join('');
   }
@@ -12876,6 +12880,8 @@ function vbUpdateVisit(id, field, val) {
     if(v.fee > 0) v.billable = true;
   } else if(field === 'billable') {
     v.billable = !!val;
+  } else if(field === 'notes') {
+    v.notes = String(val || '').trim();
   } else return;
   v.updatedAt = new Date().toISOString();
   saveDoc('visits', v);
