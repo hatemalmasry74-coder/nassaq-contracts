@@ -820,8 +820,8 @@ window._firebaseLoaded = typeof firebase !== 'undefined';
   .badge-archived { background:rgba(113,128,150,.15); color:#4a5568; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:700; }
   /* 🔒 الحذف للأدمن فقط: إخفاء أزرار الحذف لباقي الأدوار */
   body.nsq-no-delete [onclick*="delete" i],
-  body.nsq-no-delete [onclick*="confirmRemoveOrgMember"],
-  body.nsq-no-delete [onclick*="resetOrgStructure"] { display: none !important; }
+  body.nsq-no-admin [onclick*="confirmRemoveOrgMember"],
+  body.nsq-no-admin [onclick*="resetOrgStructure"] { display: none !important; }
   .role-pending { background: rgba(237,137,54,0.25); color: #fbd38d; }
   .role-badge {
     display: inline-block; padding: 2px 8px; border-radius: 12px;
@@ -5202,7 +5202,7 @@ async function saveDoc(collection, obj) {
 // 🔒 الحذف للأدمن فقط + نسخة من السجل تُحفظ في "سلة المحذوفات" (trash) لإمكانية الاسترجاع
 const TRASH_SKIP = ['visit_files', 'member_files'];   // ملفات ثقيلة لا تُنسخ للسلة
 async function deleteDoc(collection, id) {
-  if(!canDo('delete')) { showToast('🔒 الحذف متاح لمدير الشركة فقط'); return; }
+  if(!canDo('delete')) { showToast('🔒 ليس لديك صلاحية الحذف'); return; }
   saveLocal();
   if (!db_firestore || !id) return;
   try {
@@ -11733,7 +11733,7 @@ function applyPermissions() {
   
   window._perm = { 
     canEdit: isAdmin || isPM || isSupervisor || isAssistant, 
-    canDelete: isAdmin,               // 🔒 الحذف مقفل على مدير الشركة (الأدمن) فقط 
+    canDelete: isAdmin || isAssistant, // 🔒 الحذف: مدير الشركة + السكرتيرة (السلة وسجل النشاط للأدمن فقط)
     canAdd: isAdmin || isPM || isSupervisor || isAssistant,
     canManageUsers: isAdmin || isPM,  // PM الآن يقدر يدير (مع قيود في الواجهة)
     isTopAdmin: isAdmin,              // فقط Admin يقدر يعدل/يحذف الـ admin_company
@@ -11747,7 +11747,7 @@ function applyPermissions() {
     role 
   };
   // إخفاء كل أزرار الحذف في الواجهة لغير الأدمن (الحماية الفعلية داخل كل دالة حذف + قواعد Firestore)
-  try { document.body.classList.toggle('nsq-no-delete', !isAdmin); } catch(e) {}
+  try { document.body.classList.toggle('nsq-no-delete', !window._perm.canDelete); document.body.classList.toggle('nsq-no-admin', !isAdmin); } catch(e) {}
   const navTrash = document.getElementById('nav-trash');
   if(navTrash) navTrash.style.display = isAdmin ? 'flex' : 'none';
   const navAudit = document.getElementById('nav-audit');
@@ -11757,7 +11757,7 @@ function applyPermissions() {
 // حارس موحّد لكل عمليات الحذف — يرجع true إذا كان المستخدم الحالي أدمن
 function requireDelete() {
   if(canDo('delete')) return true;
-  showToast('🔒 الحذف متاح لمدير الشركة فقط');
+  showToast('🔒 ليس لديك صلاحية الحذف');
   return false;
 }
 
